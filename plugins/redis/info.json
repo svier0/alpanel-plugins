@@ -4,5 +4,6 @@
   "desc": "redis",
   "versions": "1.0",
   "author": "alpanel",
-  "home": "https://github.com/svier0/alpanel"
+  "home": "https://github.com/svier0/alpanel",
+  "func": "get_version"
 }
