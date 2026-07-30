@@ -46,10 +46,11 @@ install() {
 
     (
         cd "$dl_dir"
-        apk fetch --recursive php7 php7-fpm php7-mysqli php7-pdo_mysql \
+        apk fetch --recursive --repository https://dl-cdn.alpinelinux.org/alpine/v3.15/community \
+            php7 php7-fpm php7-mysqli php7-pdo_mysql \
             php7-gd php7-curl php7-mbstring php7-opcache php7-zip
     ) || {
-        echo "错误: 未找到 php7 相关软件包 (Alpine 3.17 或更早版本)" >&2
+        echo "错误: 从 Alpine v3.15 仓库获取 php7 软件包失败" >&2
         rm -rf "$dl_dir" "$ext_dir"
         exit 1
     }
