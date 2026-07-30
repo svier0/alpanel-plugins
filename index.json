@@ -1,0 +1,26 @@
+[
+	{
+	  "title": "Nginx",
+	  "name": "nginx",
+	  "desc": "nginx",
+	  "versions": "1.0",
+	  "author": "alpanel",
+	  "home": "https://github.com/svier0/alpanel"
+	},
+	{
+	  "title": "MySQL",
+	  "name": "mysql",
+	  "desc": "mysql",
+	  "versions": "1.0",
+	  "author": "alpanel",
+	  "home": "https://github.com/svier0/alpanel"
+	},
+	{
+	  "title": "Redis",
+	  "name": "redis",
+	  "desc": "redis",
+	  "versions": "1.0",
+	  "author": "alpanel",
+	  "home": "https://github.com/svier0/alpanel"
+	}
+]
