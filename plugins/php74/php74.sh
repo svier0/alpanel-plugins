@@ -64,6 +64,25 @@ install() {
         cp -r "$ext_dir/usr/bin/." "$BIN_DIR/" 2>/dev/null || true
         cp -r "$ext_dir/usr/sbin/." "$BIN_DIR/" 2>/dev/null || true
         chmod +x "$BIN_DIR/"* 2>/dev/null || true
+
+        if ! ldconfig -p 2>/dev/null | grep -q 'libssl.so.1.1'; then
+            echo "系统缺少 libssl 1.1，从 Alpine v3.15 仓库获取..."
+            ssl_dir=$(mktemp -d)
+            (
+                cd "$ssl_dir"
+                apk fetch --no-install --repository https://dl-cdn.alpinelinux.org/alpine/v3.15/main \
+                    libssl1.1 libcrypto1.1
+            ) >/dev/null 2>&1 || true
+            for apk_file in "$ssl_dir"/*.apk; do
+                [ -f "$apk_file" ] || continue
+                tar -xzf "$apk_file" -C "$ssl_dir"
+            done
+            for d in "$ssl_dir/lib" "$ssl_dir/usr/lib"; do
+                [ -d "$d" ] && cp -r "$d/." "$LIB_DIR/" 2>/dev/null || true
+            done
+            rm -rf "$ssl_dir"
+        fi
+
         apply_rpath "$PHP_DIR/lib" "$PHP_BIN" "$FPM_BIN"
         ln -sf "$PHP_BIN" "/usr/bin/php7"
     else
