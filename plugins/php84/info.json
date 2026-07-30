@@ -1,0 +1,9 @@
+﻿{
+    "author":  "alpanel",
+    "name":  "php84",
+    "home":  "https://github.com/svier0/alpanel",
+    "desc":  "php 8.4",
+    "versions":  "1.0",
+    "title":  "PHP8.4",
+    "func":  "get_version"
+}

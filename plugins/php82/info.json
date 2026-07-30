@@ -1,0 +1,9 @@
+{
+  "title": "PHP8.2",
+  "name": "php82",
+  "desc": "php 8.2",
+  "versions": "1.0",
+  "author": "alpanel",
+  "home": "https://github.com/svier0/alpanel",
+  "func": "get_version"
+}
