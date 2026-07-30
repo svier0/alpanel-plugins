@@ -1,0 +1,9 @@
+{
+  "title": "PHP7.4",
+  "name": "php74",
+  "desc": "php 7.4",
+  "versions": "1.0",
+  "author": "alpanel",
+  "home": "https://github.com/svier0/alpanel",
+  "func": "get_version"
+}
