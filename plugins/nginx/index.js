@@ -17,7 +17,7 @@ const nginx = {
 
   render(h, state) {
     const { active, tabLabel } = state
-    const pages: Record<string, any> = {
+    const pages = {
       service: h('div', [
         h('p', ['当前状态：开启', h('span', { class: 'on' }, '\u25b6')]),
         h('div', { class: 'row' }, [
@@ -59,12 +59,12 @@ const nginx = {
 
     return h('div', { class: 'app' }, [
       h('nav', { class: 'side' },
-        state.tabs.map((k: string) =>
-          h('div', {
+        state.tabs.map(function(k) {
+          return h('div', {
             class: ['item', active.value === k ? 'active' : ''],
-            onClick: () => { active.value = k },
+            onClick: function() { active.value = k },
           }, tabLabel[k])
-        )
+        })
       ),
       h('main', { class: 'content' }, pages[active.value]),
     ])
