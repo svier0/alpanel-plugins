@@ -41,7 +41,7 @@ install() {
     run_dir="$mysql_dir/run"
     log_dir="/www/wwwlogs"
 
-    mkdir -p "$bin_dir" "$lib_dir" "$conf_dir" "$run_dir" "$data_dir" "$log_dir"
+    mkdir -p "$bin_dir" "$lib_dir" "$conf_dir" "$run_dir" "$DATA_DIR" "$log_dir"
 
     dl_dir=$(mktemp -d)
     ext_dir=$(mktemp -d)
@@ -100,11 +100,11 @@ collation-server=utf8mb4_unicode_ci
 socket=/www/server/mysql/run/mysql.sock
 EOF
 
-    if [ ! -d "$data_dir/mysql" ]; then
+    if [ ! -d "$DATA_DIR/mysql" ]; then
         echo "正在初始化数据库..."
         export LD_LIBRARY_PATH="$lib_dir"
         "$bin_dir/mariadb-install-db" --defaults-file="$conf_dir/my.cnf" \
-            --user=root --datadir="$data_dir" --basedir="$mysql_dir" >/dev/null 2>&1 || {
+            --user=root --datadir="$DATA_DIR" --basedir="$mysql_dir" >/dev/null 2>&1 || {
             echo "错误: 数据库初始化失败" >&2
             rm -rf "$dl_dir" "$ext_dir"
             exit 1
