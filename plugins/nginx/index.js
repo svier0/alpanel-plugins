@@ -85,21 +85,21 @@ const nginx = {
       }
     }
 
-    function parsePerf(content) {
-      var getVal = function(pattern, def) {
-        var m = content.match(pattern)
-        return m && m[1] ? m[1].trim() : def || ''
-      }
-      perf.worker_processes = getVal(/worker_processes\s+(\S+);/i, 'auto')
-      perf.worker_connections = getVal(/worker_connections\s+(\S+);/i, '1024')
-      perf.keepalive_timeout = getVal(/keepalive_timeout\s+(\S+);/i, '65')
-      perf.gzip = getVal(/gzip\s+(\S+);/i, 'off') === 'on'
-      perf.gzip_min_length = getVal(/gzip_min_length\s+(\S+);/i, '1024')
-      perf.gzip_comp_level = getVal(/gzip_comp_level\s+(\S+);/i, '6')
-      perf.client_max_body_size = getVal(/client_max_body_size\s+(\S+);/i, '1m')
-      perf.server_names_hash_bucket_size = getVal(/server_names_hash_bucket_size\s+(\S+);/i, '64')
-      perf.client_header_buffer_size = getVal(/client_header_buffer_size\s+(\S+);/i, '4k')
-      perf.client_body_buffer_size = getVal(/client_body_buffer_size\s+(\S+);/i, '8k')
+    async function loadPerf() {
+      try {
+        var r = await ctx.api('get_nginx_value')
+        var d = r.stdout ? JSON.parse(r.stdout) : {}
+        perf.worker_processes = d.worker_processes || 'auto'
+        perf.worker_connections = d.worker_connections || '1024'
+        perf.keepalive_timeout = d.keepalive_timeout || '65'
+        perf.gzip = d.gzip === 'on'
+        perf.gzip_min_length = d.gzip_min_length || '1024'
+        perf.gzip_comp_level = d.gzip_comp_level || '6'
+        perf.client_max_body_size = d.client_max_body_size || '1m'
+        perf.server_names_hash_bucket_size = d.server_names_hash_bucket_size || '64'
+        perf.client_header_buffer_size = d.client_header_buffer_size || '4k'
+        perf.client_body_buffer_size = d.client_body_buffer_size || '8k'
+      } catch(e) {}
       perfLoaded.value = true
     }
 
@@ -107,12 +107,10 @@ const nginx = {
       try {
         var r = await ctx.api('/api/files/read?path=/www/server/nginx/conf/nginx.conf', { method: 'GET' })
         configContent.value = r && r.content ? r.content : ''
-        configLoaded.value = true
-        parsePerf(configContent.value)
       } catch {
         configContent.value = ''
-        configLoaded.value = true
       }
+      configLoaded.value = true
     }
 
     async function saveConfig() {
@@ -122,7 +120,6 @@ const nginx = {
           method: 'POST',
           body: JSON.stringify({ path: '/www/server/nginx/conf/nginx.conf', content: configContent.value })
         })
-        parsePerf(configContent.value)
         toast('已保存', 'ok')
       } catch (e) {
         toast('保存失败 ' + (e.message || ''), 'err')
@@ -131,32 +128,33 @@ const nginx = {
       }
     }
 
-    function setConfVal(content, pattern, newVal) {
-      return content.replace(new RegExp(pattern.source, 'gi'), function(match) {
-        return match.replace(/\s\S+;?$/, ' ' + newVal + ';')
-      })
-    }
-
     async function savePerformance() {
       perfSaving.value = true
       try {
-        var c = configContent.value
-        c = setConfVal(c, /worker_processes\s+\S+;/, perf.worker_processes)
-        c = setConfVal(c, /worker_connections\s+\S+;/, perf.worker_connections)
-        c = setConfVal(c, /keepalive_timeout\s+\S+;/, perf.keepalive_timeout)
-        c = setConfVal(c, /gzip\s+\S+;/, perf.gzip ? 'on' : 'off')
-        c = setConfVal(c, /gzip_min_length\s+\S+;/, perf.gzip_min_length)
-        c = setConfVal(c, /gzip_comp_level\s+\S+;/, perf.gzip_comp_level)
-        c = setConfVal(c, /client_max_body_size\s+\S+;/, perf.client_max_body_size)
-        c = setConfVal(c, /server_names_hash_bucket_size\s+\S+;/, perf.server_names_hash_bucket_size)
-        c = setConfVal(c, /client_header_buffer_size\s+\S+;/, perf.client_header_buffer_size)
-        c = setConfVal(c, /client_body_buffer_size\s+\S+;/, perf.client_body_buffer_size)
+        var data = {
+          worker_processes: perf.worker_processes,
+          worker_connections: perf.worker_connections,
+          keepalive_timeout: perf.keepalive_timeout,
+          gzip: perf.gzip ? 'on' : 'off',
+          gzip_min_length: perf.gzip_min_length,
+          gzip_comp_level: perf.gzip_comp_level,
+          client_max_body_size: perf.client_max_body_size,
+          server_names_hash_bucket_size: perf.server_names_hash_bucket_size,
+          client_header_buffer_size: perf.client_header_buffer_size,
+          client_body_buffer_size: perf.client_body_buffer_size,
+        }
         await ctx.api('/api/files/write', {
           method: 'POST',
-          body: JSON.stringify({ path: '/www/server/nginx/conf/nginx.conf', content: c })
+          body: JSON.stringify({ path: '/tmp/nginx_perf.json', content: JSON.stringify(data) })
         })
-        configContent.value = c
-        toast('已保存', 'ok')
+        var r = await ctx.api('set_nginx_value')
+        var d = r.stdout ? JSON.parse(r.stdout) : {}
+        if (d.ok) {
+          toast('已保存', 'ok')
+          loadConfig()
+        } else {
+          toast(d.error || '保存失败', 'err')
+        }
       } catch (e) {
         toast('保存失败 ' + (e.message || ''), 'err')
       } finally {
@@ -177,26 +175,27 @@ const nginx = {
 
     async function loadStatusDetail() {
       try {
-        var r = await ctx.api('/api/files/read?path=/www/server/nginx/run/nginx.pid', { method: 'GET' })
-        var pid = r && r.content ? r.content.trim() : ''
-        if (pid) {
-          try {
-            var sr = await ctx.api('/api/files/read?path=/proc/' + pid + '/status', { method: 'GET' })
-            if (sr && sr.content) {
-              var threads = sr.content.match(/Threads:\s*(\d+)/)
-              if (threads) loadInfo.worker_count = threads[1]
-              var vmrss = sr.content.match(/VmRSS:\s*(\d+)\s*kB/)
-              if (vmrss) loadInfo.worker_mem = Math.round(vmrss[1] / 1024) + 'MB'
-            }
-          } catch (e) {}
+        var r = await ctx.api('get_nginx_status')
+        if (r.stdout) {
+          var d = JSON.parse(r.stdout)
+          loadInfo.active_connections = d.active_connections || '-'
+          loadInfo.accepts = d.accepts || '-'
+          loadInfo.handled = d.handled || '-'
+          loadInfo.requests = d.requests || '-'
+          loadInfo.reading = d.reading || '-'
+          loadInfo.writing = d.writing || '-'
+          loadInfo.waiting = d.waiting || '-'
+          loadInfo.worker_count = d.worker_count || '-'
+          loadInfo.worker_cpu = d.worker_cpu || '-'
+          loadInfo.worker_mem = d.worker_mem || '-'
         }
-      } catch (e) {}
+      } catch(e) {}
     }
 
     function onTabChange(tab) {
       active.value = tab
       if (tab === 'config' && !configLoaded.value) loadConfig()
-      if (tab === 'performance') loadConfig()
+      if (tab === 'performance') loadPerf()
       if (tab === 'errorlog' && !logLoaded.value) loadLog()
       if (tab === 'load') loadStatusDetail()
     }
@@ -211,7 +210,7 @@ const nginx = {
       loadInfo,
       logContent, logLoaded,
       toastMsg, toastType,
-      checkStatus, control, loadConfig, saveConfig,
+      checkStatus, control, loadConfig, loadPerf, saveConfig,
       savePerformance, loadLog, onTabChange,
     }
   },

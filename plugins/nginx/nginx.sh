@@ -255,3 +255,72 @@ reload() {
     echo "Nginx 未运行" >&2
     exit 1
 }
+
+get_nginx_status() {
+    workers="-"; mem="-"; cpu="-"
+    active="-"; accepts="-"; handled="-"; requests="-"; reading="-"; writing="-"; waiting="-"
+
+    if [ -f "$PIDFILE" ]; then
+        read PID < "$PIDFILE"
+        if kill -0 "$PID" 2>/dev/null; then
+            workers=$(pgrep -P "$PID" 2>/dev/null | wc -l | tr -d ' ')
+            if [ -f "/proc/$PID/status" ]; then
+                mem=$(awk '/VmRSS/{printf "%.0f", $2/1024}' /proc/$PID/status 2>/dev/null)
+                [ -n "$mem" ] && mem="${mem}MB" || mem="-"
+            fi
+        fi
+    fi
+
+    if command -v curl >/dev/null 2>&1 && [ -f "$PIDFILE" ]; then
+        read PID < "$PIDFILE"
+        if kill -0 "$PID" 2>/dev/null; then
+            status_data=$(curl -s --max-time 2 http://localhost/nginx_status 2>/dev/null || true)
+            if [ -n "$status_data" ]; then
+                active=$(echo "$status_data" | awk '/Active connections/{print $3}')
+                accepts=$(echo "$status_data" | awk '/^\s+[0-9]+\s+[0-9]+\s+[0-9]+/{print $1}')
+                handled=$(echo "$status_data" | awk '/^\s+[0-9]+\s+[0-9]+\s+[0-9]+/{print $2}')
+                requests=$(echo "$status_data" | awk '/^\s+[0-9]+\s+[0-9]+\s+[0-9]+/{print $3}')
+                reading=$(echo "$status_data" | awk '/Reading:/{print $2}')
+                writing=$(echo "$status_data" | awk '/Reading:/{print $4}')
+                waiting=$(echo "$status_data" | awk '/Reading:/{print $6}')
+            fi
+        fi
+    fi
+
+    echo "{\"active_connections\":\"$active\",\"accepts\":\"$accepts\",\"handled\":\"$handled\",\"requests\":\"$requests\",\"reading\":\"$reading\",\"writing\":\"$writing\",\"waiting\":\"$waiting\",\"worker_count\":\"$workers\",\"worker_cpu\":\"$cpu\",\"worker_mem\":\"$mem\"}"
+}
+
+get_nginx_value() {
+    conf="$NGINX_CONF"
+    getv() { val=$(grep -iE "^\s*${1}\s+" "$conf" 2>/dev/null | head -1 | awk '{gsub(/;/, "", $2); print $2}'); [ -n "$val" ] && echo "$val" || echo "${2}"; }
+
+    echo "{\"worker_processes\":\"$(getv worker_processes auto)\",\"worker_connections\":\"$(getv worker_connections 1024)\",\"keepalive_timeout\":\"$(getv keepalive_timeout 65)\",\"gzip\":\"$(getv gzip off)\",\"gzip_min_length\":\"$(getv gzip_min_length 1024)\",\"gzip_comp_level\":\"$(getv gzip_comp_level 6)\",\"client_max_body_size\":\"$(getv client_max_body_size 1m)\",\"server_names_hash_bucket_size\":\"$(getv server_names_hash_bucket_size 64)\",\"client_header_buffer_size\":\"$(getv client_header_buffer_size 4k)\",\"client_body_buffer_size\":\"$(getv client_body_buffer_size 8k)\"}"
+}
+
+set_nginx_value() {
+    tmp="/tmp/nginx_perf.json"
+    if [ ! -f "$tmp" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    conf="$NGINX_CONF"
+    [ -f "$conf" ] && cp "$conf" "$conf.bak" || { echo '{"error":"conf missing"}'; exit 1; }
+
+    for key in worker_processes worker_connections keepalive_timeout gzip gzip_min_length gzip_comp_level client_max_body_size server_names_hash_bucket_size client_header_buffer_size client_body_buffer_size; do
+        val=$(jq -r ".$key // empty" "$tmp" 2>/dev/null)
+        if [ -n "$val" ]; then
+            sed -i "s/^\(\s*${key}\s\+\).*;/\1${val};/I" "$conf"
+        fi
+    done
+
+    rm -f "$tmp"
+    if "$NGINX_BIN" -t -c "$NGINX_CONF" 2>/dev/null; then
+        rm -f "$conf.bak"
+        echo '{"ok":true}'
+    else
+        cp "$conf.bak" "$conf"
+        rm -f "$conf.bak"
+        echo '{"error":"config test failed"}'
+        exit 1
+    fi
+}

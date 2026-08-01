@@ -5,5 +5,5 @@
   "versions": "1.0",
   "author": "alpanel",
   "home": "https://github.com/svier0/alpanel",
-  "func": "get_version"
+  "func": "get_version|get_nginx_status|get_nginx_value|set_nginx_value"
 }
