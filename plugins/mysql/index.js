@@ -40,6 +40,15 @@ const mysql = {
     const slowLogContent = ref('')
     const slowLogLoaded = ref(false)
 
+    const statusInfo = reactive({
+      start_time: '', connections: '', bytes_sent: '', bytes_recv: '',
+      qps: '', tps: '', file: '', position: '',
+      threads: '', threads_hit: '', key_hit: '', innodb_hit: '',
+      qcache_hit: '', tmp_disk: '', open_tables: '',
+      select_scan: '', full_join: '', sort_merge: '', lock_waited: '',
+    })
+    const statusLoaded = ref(false)
+
     const toastMsg = ref('')
     const toastType = ref('')
 
@@ -163,6 +172,37 @@ const mysql = {
       }
     }
 
+    const statusLoaded = ref(false)
+
+    async function loadStatus() {
+      try {
+        var r = await ctx.api('get_mysql_status')
+        if (r && r.stdout) {
+          var d = JSON.parse(r.stdout)
+          statusInfo.start_time = d.start_time || '-'
+          statusInfo.connections = d.connections || '-'
+          statusInfo.bytes_sent = d.bytes_sent || '-'
+          statusInfo.bytes_recv = d.bytes_recv || '-'
+          statusInfo.qps = d.qps || '-'
+          statusInfo.tps = d.tps || '-'
+          statusInfo.file = d.file || '-'
+          statusInfo.position = d.position || '-'
+          statusInfo.threads = d.threads || '-'
+          statusInfo.threads_hit = d.threads_hit || '-'
+          statusInfo.key_hit = d.key_hit || '-'
+          statusInfo.innodb_hit = d.innodb_hit || '-'
+          statusInfo.qcache_hit = d.qcache_hit || '-'
+          statusInfo.tmp_disk = d.tmp_disk || '-'
+          statusInfo.open_tables = d.open_tables || '-'
+          statusInfo.select_scan = d.select_scan || '-'
+          statusInfo.full_join = d.full_join || '-'
+          statusInfo.sort_merge = d.sort_merge || '-'
+          statusInfo.lock_waited = d.lock_waited || '-'
+        }
+      } catch (e) {}
+      statusLoaded.value = true
+    }
+
     async function loadErrLog() {
       try {
         var r = await ctx.api('/api/files/read?path=/www/wwwlogs/mysql_error.log', { method: 'GET' })
@@ -192,6 +232,7 @@ const mysql = {
       if (tab === 'performance' && !perfLoaded.value)  { loading.value = true; loadPerf().finally(function() { loading.value = false }) }
       if (tab === 'errorlog' && !errLogLoaded.value)   { loading.value = true; loadErrLog().finally(function() { loading.value = false }) }
       if (tab === 'slowlog' && !slowLogLoaded.value)   { loading.value = true; loadSlowLog().finally(function() { loading.value = false }) }
+      if (tab === 'load' && !statusLoaded.value)       { loading.value = true; loadStatus().finally(function() { loading.value = false }) }
     }
 
     checkStatus()
@@ -203,10 +244,11 @@ const mysql = {
       perf, perfLoaded, perfSaving,
       errLogContent, errLogLoaded,
       slowLogContent, slowLogLoaded,
+      statusInfo, statusLoaded,
       toastMsg, toastType, loading,
       checkStatus, control, loadConfig, saveConfig,
       loadPerf, savePerformance,
-      loadErrLog, loadSlowLog, switchTab,
+      loadErrLog, loadSlowLog, loadStatus, switchTab,
       Editor,
     }
   },
@@ -304,6 +346,37 @@ const mysql = {
       ])
     }
 
+    function pageLoad() {
+      if (!state.statusLoaded.value) return spinner()
+      var s = state.statusInfo
+      return h('div', [
+        h('table', { class: 'table' }, [
+          h('tbody', [
+            h('tr', [h('td', '启动时间'), h('td', s.start_time), h('td', '总连接次数'), h('td', s.connections)]),
+            h('tr', [h('td', '发送'), h('td', s.bytes_sent), h('td', '接收'), h('td', s.bytes_recv)]),
+            h('tr', [h('td', '每秒查询'), h('td', s.qps), h('td', '每秒事务'), h('td', s.tps)]),
+            h('tr', [h('td', 'File'), h('td', s.file), h('td', 'Position'), h('td', s.position)]),
+          ]),
+        ]),
+        h('table', { class: 'table' }, [
+          h('thead', [h('tr', [h('th', '字段'), h('th', '当前值'), h('th', '注意')])]),
+          h('tbody', [
+            h('tr', [h('td', '活动/峰值连接数'), h('td', s.threads), h('td', '若值过大,增加max_connections')]),
+            h('tr', [h('td', '线程缓存命中率'), h('td', s.threads_hit), h('td', '若过低,增加thread_cache_size')]),
+            h('tr', [h('td', '索引命中率'), h('td', s.key_hit), h('td', '若过低,增加key_buffer_size')]),
+            h('tr', [h('td', 'Innodb索引命中率'), h('td', s.innodb_hit), h('td', '若过低,增加innodb_buffer_pool_size')]),
+            h('tr', [h('td', '查询缓存命中率'), h('td', s.qcache_hit), h('td', '若过低,增加query_cache_size')]),
+            h('tr', [h('td', '创建临时表到磁盘'), h('td', s.tmp_disk), h('td', '若过大,尝试增加tmp_table_size')]),
+            h('tr', [h('td', '已打开的表'), h('td', s.open_tables), h('td', 'table_open_cache配置值应大于等于此值')]),
+            h('tr', [h('td', '没有使用索引的量'), h('td', s.select_scan), h('td', '若不为0,请检查数据表的索引是否合理')]),
+            h('tr', [h('td', '没有索引的JOIN量'), h('td', s.full_join), h('td', '若不为0,请检查数据表的索引是否合理')]),
+            h('tr', [h('td', '排序后的合并次数'), h('td', s.sort_merge), h('td', '若值过大,增加sort_buffer_size')]),
+            h('tr', [h('td', '锁表次数'), h('td', s.lock_waited), h('td', '若值过大,请考虑增加您的数据库性能')]),
+          ]),
+        ]),
+      ])
+    }
+
     function pageErrLog() {
       if (!state.errLogLoaded.value) return spinner()
       return h('div', [
@@ -322,7 +395,7 @@ const mysql = {
       service:     pageService(),
       config:      pageConfig(),
       performance: pagePerformance(),
-      load:        placeholder(),
+      load:        pageLoad(),
       errorlog:    pageErrLog(),
       slowlog:     pageSlowLog(),
       binlog:      placeholder(),
