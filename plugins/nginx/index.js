@@ -1,6 +1,5 @@
 const nginx = {
   plugin_name: 'nginx',
-  width: 800,
 
   setup(ctx) {
     const { ref, reactive } = ctx
@@ -379,9 +378,9 @@ const nginx = {
       '.tip{color:#666;font-size:13px}',
       '.form{display:flex;align-items:center;gap:10px;margin-bottom:12px}',
       '.form label{font-family:monospace;color:#aaa;font-size:13px;width:210px;flex-shrink:0}',
-      '.form input{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;width:58px;outline:none}',
+      '.form input{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;outline:none}',
       '.form input:focus{border-color:#409eff}',
-      '.slt{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;outline:none;cursor:pointer;width:80px}',
+      '.slt{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;outline:none;cursor:pointer}',
       '.slt:focus{border-color:#409eff}',
       '.code{width:100%;font-family:monospace;font-size:13px;padding:10px;border:1px solid #333;border-radius:3px;background:#1a1a1a;color:#ccc;resize:vertical;box-sizing:border-box;outline:none;line-height:1.5}',
       '.code:focus{border-color:#409eff}',
