@@ -463,7 +463,7 @@ const mysql = {
         h('span', { class: 'track' }, [h('i', { class: 'knob' })]),
       ])
       return h('div', [
-        h('h3', { class: 'title' }, '二进制日志'),
+        h('span', { class: 'title' }, '二进制日志'),
         h('div', { class: 'sw' }, [
           sw,
           h('span', { class: 'sw-size' }, b.size),
@@ -544,7 +544,7 @@ const mysql = {
       '.table th,.table td{padding:8px 14px;border-bottom:1px solid #2a2a2a;font-size:14px}',
       '.table td{color:#aaa}',
       '.table tr td:nth-child(2n){width:26%}',
-      '.title{font-size:16px;color:#fff;margin:0 0 14px}',
+      '.title{font-size:16px;color:#fff;font-weight:normal;display:inline;margin-right:10px}',
       '.sw{display:flex;align-items:center;gap:10px;margin-bottom:14px}',
       '.sw-size{font-size:13px;color:#ccc}',
       '.switch{display:inline-flex;align-items:center;cursor:pointer;user-select:none}',
