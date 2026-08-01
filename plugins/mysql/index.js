@@ -349,6 +349,7 @@ const mysql = {
       var s = state.statusInfo
       return h('div', [
         h('table', { class: 'table' }, [
+          h('thead', [h('tr', [h('th', '项目'), h('th', '数值'), h('th', '项目'), h('th', '数值')])]),
           h('tbody', [
             h('tr', [h('td', '启动时间'), h('td', s.start_time), h('td', '总连接次数'), h('td', s.connections)]),
             h('tr', [h('td', '发送'), h('td', s.bytes_sent), h('td', '接收'), h('td', s.bytes_recv)]),
@@ -434,10 +435,10 @@ const mysql = {
       '.off{color:red;font-weight:bold}',
       '.tip{color:#666;font-size:13px}',
       '.ph{padding:40px 0;text-align:center}',
-      '.table{width:100%;border-collapse:collapse;margin-top:4px}',
+      '.table{width:100%;border-collapse:collapse;margin-top:4px;border:1px solid #2a2a2a}',
       '.table + .table{margin-top:20px}',
       '.table th{background:#202020;color:#ccc;font-weight:500}',
-      '.table th,.table td{padding:8px 14px;border-bottom:1px solid #2a2a2a;font-size:14px}',
+      '.table th,.table td{padding:8px 14px;border:1px solid #2a2a2a;font-size:14px}',
       '.table td{color:#aaa}',
       '.table tr td:nth-child(2n){width:26%}',
       '.plugin-editor{font-size:13px;min-height:200px}',
