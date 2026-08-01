@@ -2,7 +2,7 @@ const nginx = {
   plugin_name: 'nginx',
 
   setup(ctx) {
-    const { ref, reactive } = ctx
+    const { ref, reactive, onMounted, onUnmounted } = ctx
 
     const activeTab = ref('service')
     const tabs = ['service', 'config', 'performance', 'load', 'errorlog']
@@ -14,6 +14,39 @@ const nginx = {
     const configContent = ref('')
     const configLoaded = ref(false)
     const configSaving = ref(false)
+
+    var cfgEditorView = null
+    var logEditorView = null
+
+    function initCfgEditor(el) {
+      if (el && !cfgEditorView) {
+        cfgEditorView = ctx.createEditor(el, {
+          value: configContent.value,
+          language: 'nginx',
+          onChange: function(v) { configContent.value = v }
+        })
+      } else if (!el && cfgEditorView) {
+        cfgEditorView.destroy()
+        cfgEditorView = null
+      }
+    }
+
+    function initLogEditor(el) {
+      if (el && !logEditorView) {
+        logEditorView = ctx.createEditor(el, {
+          value: logContent.value,
+          readonly: true,
+        })
+      } else if (!el && logEditorView) {
+        logEditorView.destroy()
+        logEditorView = null
+      }
+    }
+
+    const cfgEditorEl = ref(null)
+    const logEditorEl = ref(null)
+    var cfgEditor = null
+    var logEditor = null
 
     const perf = reactive({
       worker_processes: '',
@@ -92,6 +125,7 @@ const nginx = {
       } catch (e) {
         configContent.value = ''
       }
+      if (cfgEditorView) cfgEditorView.setValue(configContent.value)
       configLoaded.value = true
     }
 
@@ -171,6 +205,7 @@ const nginx = {
       } catch (e) {
         logContent.value = ''
       }
+      if (logEditorView) logEditorView.setValue(logContent.value)
       logLoaded.value = true
     }
 
@@ -217,6 +252,7 @@ const nginx = {
       toastMsg, toastType, loading,
       checkStatus, control, loadConfig, saveConfig,
       loadPerf, savePerformance, loadLog, loadStatus, switchTab,
+      initCfgEditor, initLogEditor,
     }
   },
 
@@ -270,8 +306,7 @@ const nginx = {
       if (!state.configLoaded.value) return spinner()
       return h('div', [
         h('p', { class: 'tip' }, '提示：修改后请保存并重启服务生效'),
-        h('textarea', { class: 'code', rows: 18, value: state.configContent.value,
-          onInput: function(e) { state.configContent.value = e.target.value } }),
+        h('div', { ref: state.initCfgEditor, class: 'cm-wrap' }),
         h('div', { class: 'row' }, [
           h('button', { class: 'btn', onClick: state.saveConfig },
             state.configSaving.value ? '保存中...' : '保存'),
@@ -330,8 +365,7 @@ const nginx = {
     function pageErrorlog() {
       if (!state.logLoaded.value) return spinner()
       return h('div', [
-        h('textarea', { class: 'code', rows: 20, readonly: '', value: state.logContent.value,
-          placeholder: '暂无日志' }),
+        h('div', { ref: state.initLogEditor, class: 'cm-wrap' }),
       ])
     }
 
@@ -384,6 +418,10 @@ const nginx = {
       '.slt:focus{border-color:#409eff}',
       '.code{width:100%;font-family:monospace;font-size:13px;padding:10px;border:1px solid #333;border-radius:3px;background:#1a1a1a;color:#ccc;resize:vertical;box-sizing:border-box;outline:none;line-height:1.5}',
       '.code:focus{border-color:#409eff}',
+      '.cm-wrap{font-size:13px}',
+      '.cm-wrap .cm-editor{outline:none}',
+      '.cm-wrap .cm-editor .cm-scroller{font-family:monospace;line-height:1.5}',
+      '.cm-wrap .cm-editor.cm-focused{outline:none}',
       '.table{width:100%;border-collapse:collapse;margin-top:4px}',
       '.table th{background:#202020;color:#ccc;font-weight:500}',
       '.table th,.table td{padding:8px 14px;border-bottom:1px solid #2a2a2a;font-size:14px}',
