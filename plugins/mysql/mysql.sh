@@ -380,9 +380,9 @@ get_mysql_status() {
     qps=$(( questions / (uptime>0?uptime:1) ))
     tps=$(( (com_commit + com_rollback) / (uptime>0?uptime:1) ))
 
-    thr_hit=$(awk -v c="$connections" -v t="$threads_created" 'BEGIN{ if(c<=0){print 100.00} else printf "%.2f", (c-t)*100/c }')
-    key_hit=$(awk -v k="$key_reads" -v r="$key_req" 'BEGIN{ if(r<=0){print 100.00} else printf "%.2f", (r-k)*100/r }')
-    ib_hit=$(awk -v k="$ib_reads" -v r="$ib_req" 'BEGIN{ if(r<=0){print 100.00} else printf "%.2f", (r-k)*100/r }')
+    thr_hit=$(awk -v c="$connections" -v t="$threads_created" 'BEGIN{ if(c<=0){print 100.00} else { v=(c-t)*100/c; if(v<0)v=0; printf "%.2f", v } }')
+    key_hit=$(awk -v k="$key_reads" -v r="$key_req" 'BEGIN{ if(r<=0){print 100.00} else { v=(r-k)*100/r; if(v<0)v=0; printf "%.2f", v } }')
+    ib_hit=$(awk -v k="$ib_reads" -v r="$ib_req" 'BEGIN{ if(r<=0){print 100.00} else { v=(r-k)*100/r; if(v<0)v=0; printf "%.2f", v } }')
     qc_total=$(( qc_hits + qc_inserts ))
     if [ "$qc_total" -gt 0 ]; then
         qc_hit=$(awk -v h="$qc_hits" -v t="$qc_total" 'BEGIN{ printf "%.2f", h*100/t }')
