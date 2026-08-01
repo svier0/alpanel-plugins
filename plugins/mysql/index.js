@@ -468,7 +468,7 @@ const mysql = {
           sw,
           h('span', { class: 'sw-size' }, b.size),
         ]),
-        h('p', { class: 'tip' }, '温馨提示：开启后需重启数据库生效；二进制日志用于数据恢复与主从复制，会占用磁盘空间，请定期清理。'),
+        h('p', { class: 'tip' }, '· 温馨提示：MySQL二进制日志可用于数据备份恢复。'),
         h('table', { class: 'table' }, [
           h('thead', [h('tr', [h('th', '文件名'), h('th', '大小'), h('th', '最后修改时间'), h('th', '操作')])]),
           h('tbody', (b.logs && b.logs.length)
