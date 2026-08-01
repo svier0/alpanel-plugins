@@ -461,12 +461,12 @@ const mysql = {
         onClick: function() { if (!state.binlogSaving.value) state.setBinlog(!b.enabled) },
       }, [
         h('span', { class: 'track' }, [h('i', { class: 'knob' })]),
-        h('span', { class: 'sw-state' }, b.enabled ? '已开启' : '未开启'),
       ])
       return h('div', [
+        h('h3', { class: 'title' }, '二进制日志'),
         h('div', { class: 'sw' }, [
           sw,
-          h('span', { class: 'sw-tip' }, '总大小: ' + b.size),
+          h('span', { class: 'sw-size' }, b.size),
         ]),
         h('p', { class: 'tip' }, '温馨提示：开启后需重启数据库生效；二进制日志用于数据恢复与主从复制，会占用磁盘空间，请定期清理。'),
         h('table', { class: 'table' }, [
@@ -544,15 +544,14 @@ const mysql = {
       '.table th,.table td{padding:8px 14px;border-bottom:1px solid #2a2a2a;font-size:14px}',
       '.table td{color:#aaa}',
       '.table tr td:nth-child(2n){width:26%}',
-      '.sw{display:flex;align-items:center;gap:8px;margin-bottom:14px}',
-      '.sw-tip{color:#666;font-size:13px}',
-      '.switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}',
+      '.title{font-size:16px;color:#fff;margin:0 0 14px}',
+      '.sw{display:flex;align-items:center;gap:10px;margin-bottom:14px}',
+      '.sw-size{font-size:13px;color:#ccc}',
+      '.switch{display:inline-flex;align-items:center;cursor:pointer;user-select:none}',
       '.switch .track{width:44px;height:24px;border-radius:12px;background:#333;position:relative;transition:background .2s;flex-shrink:0}',
       '.switch .track .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#ccc;transition:left .2s,background .2s}',
       '.switch.on .track{background:#409eff}',
       '.switch.on .track .knob{left:22px;background:#fff}',
-      '.switch .sw-state{font-size:13px;color:#ccc}',
-      '.switch.on .sw-state{color:#fff}',
       '.dl-link{color:#f56c6c;cursor:pointer;font-size:13px}',
       '.dl-link:hover{text-decoration:underline}',
       '.plugin-editor{font-size:13px;min-height:200px}',
