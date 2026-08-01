@@ -270,8 +270,15 @@ get_mysql_value() {
 }
 
 set_mysql_value() {
-    tmp="/tmp/mysql_perf.json"
-    if [ ! -f "$tmp" ]; then
+    tmp=""
+    if [ -n "${PLUGIN_ARGS:-}" ]; then
+        tmp=$(mktemp)
+        echo "$PLUGIN_ARGS" > "$tmp"
+    fi
+    if [ -z "$tmp" ] && [ -f "/tmp/mysql_perf.json" ]; then
+        tmp="/tmp/mysql_perf.json"
+    fi
+    if [ -z "$tmp" ]; then
         echo '{"error":"no data"}'
         exit 1
     fi
@@ -307,6 +314,51 @@ set_mysql_value() {
 
     rm -f "$tmp" "$conf.bak"
     echo '{"ok":true}'
+}
+
+get_mysql_config() {
+    if [ ! -f "$MY_CNF" ]; then
+        echo '{"error":"conf missing"}'
+        exit 1
+    fi
+    echo "{\"content\":$(cat "$MY_CNF" | jq -Rs .)}"
+}
+
+save_mysql_config() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    content=$(echo "$PLUGIN_ARGS" | jq -r '.content // empty')
+    if [ -z "$content" ]; then
+        echo '{"error":"bad content"}'
+        exit 1
+    fi
+    [ -f "$MY_CNF" ] && cp "$MY_CNF" "$MY_CNF.bak" || { echo '{"error":"conf missing"}'; exit 1; }
+    printf '%s\n' "$content" > "$MY_CNF"
+    reload >/dev/null 2>&1
+    rm -f "$MY_CNF.bak"
+    echo '{"ok":true}'
+}
+
+get_mysql_log() {
+    logpath=""
+    if [ -n "${PLUGIN_ARGS:-}" ]; then
+        logpath=$(echo "$PLUGIN_ARGS" | jq -r '.path // empty')
+    fi
+    if [ -z "$logpath" ]; then
+        echo '{"error":"no path"}'
+        exit 1
+    fi
+    case "$logpath" in
+        /www/wwwlogs/*|/www/server/data/*) ;;
+        *) echo '{"error":"bad path"}'; exit 1 ;;
+    esac
+    if [ ! -f "$logpath" ]; then
+        echo '{"content":""}'
+        exit 0
+    fi
+    echo "{\"content\":$(cat "$logpath" | jq -Rs .)}"
 }
 
 get_mysql_status() {
@@ -447,8 +499,15 @@ EOF
 }
 
 set_mysql_binlog() {
-    tmp="/tmp/mysql_binlog.json"
-    if [ ! -f "$tmp" ]; then
+    tmp=""
+    if [ -n "${PLUGIN_ARGS:-}" ]; then
+        tmp=$(mktemp)
+        echo "$PLUGIN_ARGS" > "$tmp"
+    fi
+    if [ -z "$tmp" ] && [ -f "/tmp/mysql_binlog.json" ]; then
+        tmp="/tmp/mysql_binlog.json"
+    fi
+    if [ -z "$tmp" ]; then
         echo '{"error":"no data"}'
         exit 1
     fi
@@ -480,8 +539,15 @@ set_mysql_binlog() {
 }
 
 delete_mysql_binlog() {
-    tmp="/tmp/mysql_binlog_del.json"
-    if [ ! -f "$tmp" ]; then
+    tmp=""
+    if [ -n "${PLUGIN_ARGS:-}" ]; then
+        tmp=$(mktemp)
+        echo "$PLUGIN_ARGS" > "$tmp"
+    fi
+    if [ -z "$tmp" ] && [ -f "/tmp/mysql_binlog_del.json" ]; then
+        tmp="/tmp/mysql_binlog_del.json"
+    fi
+    if [ -z "$tmp" ]; then
         echo '{"error":"no data"}'
         exit 1
     fi
