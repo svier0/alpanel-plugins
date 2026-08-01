@@ -270,16 +270,11 @@ get_mysql_value() {
 }
 
 set_mysql_value() {
-    tmp=""
-    if [ -n "${PLUGIN_ARGS:-}" ]; then
-        tmp=$(mktemp)
-        echo "$PLUGIN_ARGS" > "$tmp"
-    fi
-    if [ -z "$tmp" ] && [ ! -f "/tmp/mysql_perf.json" ]; then
+    tmp="/tmp/mysql_perf.json"
+    if [ ! -f "$tmp" ]; then
         echo '{"error":"no data"}'
         exit 1
     fi
-    [ -z "$tmp" ] && tmp="/tmp/mysql_perf.json"
     conf="$MY_CNF"
     [ -f "$conf" ] && cp "$conf" "$conf.bak" || { echo '{"error":"conf missing"}'; exit 1; }
 
@@ -312,51 +307,6 @@ set_mysql_value() {
 
     rm -f "$tmp" "$conf.bak"
     echo '{"ok":true}'
-}
-
-get_mysql_config() {
-    if [ ! -f "$MY_CNF" ]; then
-        echo '{"error":"conf missing"}'
-        exit 1
-    fi
-    echo "{\"content\":$(cat "$MY_CNF" | jq -Rs .)}"
-}
-
-save_mysql_config() {
-    if [ -z "${PLUGIN_ARGS:-}" ]; then
-        echo '{"error":"no data"}'
-        exit 1
-    fi
-    content=$(echo "$PLUGIN_ARGS" | jq -r '.content // empty')
-    if [ -z "$content" ]; then
-        echo '{"error":"bad content"}'
-        exit 1
-    fi
-    [ -f "$MY_CNF" ] && cp "$MY_CNF" "$MY_CNF.bak" || { echo '{"error":"conf missing"}'; exit 1; }
-    printf '%s\n' "$content" > "$MY_CNF"
-    reload >/dev/null 2>&1
-    rm -f "$MY_CNF.bak"
-    echo '{"ok":true}'
-}
-
-get_mysql_log() {
-    logpath=""
-    if [ -n "${PLUGIN_ARGS:-}" ]; then
-        logpath=$(echo "$PLUGIN_ARGS" | jq -r '.path // empty')
-    fi
-    if [ -z "$logpath" ]; then
-        echo '{"error":"no path"}'
-        exit 1
-    fi
-    case "$logpath" in
-        /www/wwwlogs/*|/www/server/data/*) ;;
-        *) echo '{"error":"bad path"}'; exit 1 ;;
-    esac
-    if [ ! -f "$logpath" ]; then
-        echo '{"content":""}'
-        exit 0
-    fi
-    echo "{\"content\":$(cat "$logpath" | jq -Rs .)}"
 }
 
 get_mysql_status() {
@@ -497,11 +447,12 @@ EOF
 }
 
 set_mysql_binlog() {
-    if [ -z "${PLUGIN_ARGS:-}" ]; then
+    tmp="/tmp/mysql_binlog.json"
+    if [ ! -f "$tmp" ]; then
         echo '{"error":"no data"}'
         exit 1
     fi
-    enable=$(echo "$PLUGIN_ARGS" | jq -r '.enabled // empty')
+    enable=$(jq -r '.enabled // empty' "$tmp" 2>/dev/null)
     if [ -z "$enable" ]; then
         echo '{"error":"bad param"}'
         exit 1
@@ -523,23 +474,25 @@ set_mysql_binlog() {
         sed -i "/^\s*expire_logs_days\s*=/d" "$conf"
     fi
 
-    rm -f "$conf.bak"
+    rm -f "$tmp" "$conf.bak"
     restart
     echo '{"ok":true}'
 }
 
 delete_mysql_binlog() {
-    if [ -z "${PLUGIN_ARGS:-}" ]; then
+    tmp="/tmp/mysql_binlog_del.json"
+    if [ ! -f "$tmp" ]; then
         echo '{"error":"no data"}'
         exit 1
     fi
-    logname=$(echo "$PLUGIN_ARGS" | jq -r '.name // empty')
+    logname=$(jq -r '.name // empty' "$tmp" 2>/dev/null)
     if [ -z "$logname" ]; then
         echo '{"error":"bad param"}'
         exit 1
     fi
     export LD_LIBRARY_PATH=/www/server/mysql/lib
     if /www/server/mysql/bin/mariadb --socket="$SOCKFILE" -uroot -e "PURGE BINARY LOGS TO '$logname'" >/dev/null 2>&1; then
+        rm -f "$tmp"
         echo '{"ok":true}'
     else
         echo '{"error":"purge failed"}'
