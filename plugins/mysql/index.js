@@ -471,7 +471,7 @@ const mysql = {
         h('p', { class: 'tip' }, '· 温馨提示：MySQL二进制日志可用于数据备份恢复。'),
         h('table', { class: 'table' }, [
           h('thead', [h('tr', [h('th', '文件名'), h('th', '大小'), h('th', '最后修改时间'), h('th', '操作')])]),
-          h('tbody', (b.logs && b.logs.length)
+          h('tbody', b.logs && b.logs.length
             ? b.logs.map(function(log) {
                 return h('tr', [
                   h('td', log.name),
@@ -480,7 +480,7 @@ const mysql = {
                   h('td', h('a', { class: 'dl-link', onClick: function() { state.deleteBinlog(log.name) } }, '删除')),
                 ])
               })
-            : [h('tr', [h('td', { attrs: { colspan: 4 } }, '未开启二进制日志，无日志文件')])]),
+            : []),
         ]),
       ])
     }
