@@ -231,10 +231,9 @@ const nginx = {
       load: '负载状态', errorlog: '错误日志'
     }
 
-    function btn(text, action, type) {
-      type = type || ''
+    function btn(text, action) {
       return h('button', {
-        class: 'btn ' + type + (state.actionLoading.value === action ? ' loading' : ''),
+        class: 'btn' + (state.actionLoading.value === action ? ' loading' : ''),
         onClick: function() { state.control(action) },
       }, state.actionLoading.value === action ? '...' : text)
     }
@@ -262,8 +261,8 @@ const nginx = {
         ]),
         h('div', { class: 'row' },
           running.value
-            ? [btn('停止', 'stop', 'danger'), btn('重启', 'restart'), btn('重载配置', 'reload')]
-            : [btn('启动', 'start', 'primary')]
+            ? [btn('停止', 'stop'), btn('重启', 'restart'), btn('重载配置', 'reload')]
+            : [btn('启动', 'start')]
         ),
       ])
     }
@@ -275,7 +274,7 @@ const nginx = {
         h('textarea', { class: 'code', rows: 18, value: state.configContent.value,
           onInput: function(e) { state.configContent.value = e.target.value } }),
         h('div', { class: 'row' }, [
-          h('button', { class: 'btn primary', onClick: state.saveConfig },
+          h('button', { class: 'btn', onClick: state.saveConfig },
             state.configSaving.value ? '保存中...' : '保存'),
         ]),
       ])
@@ -302,7 +301,7 @@ const nginx = {
         pField('client_header_buffer_size', 'KB，请求头buffer(如32k)', state.perf, 'client_header_buffer_size'),
         pField('client_body_buffer_size', 'KB，请求体buffer(如512k)', state.perf, 'client_body_buffer_size'),
         h('div', { class: 'row' }, [
-          h('button', { class: 'btn primary', onClick: state.savePerformance },
+          h('button', { class: 'btn', onClick: state.savePerformance },
             state.perfSaving.value ? '保存中...' : '保存'),
         ]),
       ])
@@ -370,14 +369,10 @@ const nginx = {
       '.item.active{color:#fff;background:#141414;border-left-color:#444}',
       '.content{flex:1;padding:20px;background:#141414;color:#ccc;overflow:auto}',
       '.spin-wrap{display:flex;align-items:center;justify-content:center;height:100%;min-height:200px}',
-      '.spin{width:28px;height:28px;border:2px solid #333;border-top-color:#7c3aed;border-radius:50%;animation:spin .6s linear infinite}',
+      '.spin{width:28px;height:28px;border:2px solid #333;border-top-color:#666;border-radius:50%;animation:spin .6s linear infinite}',
       '.row{display:flex;gap:10px;margin-top:10px}',
       '.btn{padding:5px 14px;border:1px solid #555;background:#141414;color:#ccc;border-radius:3px;cursor:pointer;font-size:13px}',
       '.btn:hover{color:#fff;border-color:#888}',
-      '.btn.primary{background:#7c3aed;color:#fff;border-color:#7c3aed}',
-      '.btn.primary:hover{opacity:.85}',
-      '.btn.danger{background:#ef4444;color:#fff;border-color:#ef4444}',
-      '.btn.danger:hover{opacity:.85}',
       '.btn.loading{opacity:.6;pointer-events:none}',
       '.on{color:#4ade80;font-weight:bold}',
       '.off{color:red;font-weight:bold}',
@@ -385,18 +380,18 @@ const nginx = {
       '.form{display:flex;align-items:center;gap:10px;margin-bottom:12px}',
       '.form label{font-family:monospace;color:#aaa;font-size:13px;width:210px;flex-shrink:0}',
       '.form input{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;width:180px;outline:none}',
-      '.form input:focus{border-color:#7c3aed}',
+      '.form input:focus{border-color:#409eff}',
       '.slt{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;outline:none;cursor:pointer}',
-      '.slt:focus{border-color:#7c3aed}',
+      '.slt:focus{border-color:#409eff}',
       '.code{width:100%;font-family:monospace;font-size:13px;padding:10px;border:1px solid #333;border-radius:3px;background:#1a1a1a;color:#ccc;resize:vertical;box-sizing:border-box;outline:none;line-height:1.5}',
-      '.code:focus{border-color:#7c3aed}',
+      '.code:focus{border-color:#409eff}',
       '.table{width:100%;border-collapse:collapse;margin-top:4px}',
       '.table th{background:#202020;color:#ccc;font-weight:500}',
       '.table th,.table td{padding:8px 14px;border-bottom:1px solid #2a2a2a;font-size:14px}',
       '.table td{color:#aaa}',
       '.toast{position:fixed;top:12px;right:20px;padding:8px 18px;border-radius:4px;font-size:13px;z-index:9999;color:#fff;background:#333}',
-      '.toast.ok{background:#22c55e}',
-      '.toast.err{background:#ef4444}',
+      '.toast.ok{background:#16a34a}',
+      '.toast.err{background:#dc2626}',
     ].join(' ')
   }
 }
