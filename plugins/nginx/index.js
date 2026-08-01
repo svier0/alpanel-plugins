@@ -240,7 +240,7 @@ const nginx = {
     function pField(label, tip, obj, key) {
       return h('div', { class: 'form' }, [
         h('label', label),
-        h('input', {
+        h('input', { size: 8,
           value: obj[key] || '',
           onInput: function(e) { obj[key] = e.target.value },
         }),
