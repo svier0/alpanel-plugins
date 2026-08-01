@@ -308,3 +308,101 @@ set_mysql_value() {
     rm -f "$tmp" "$conf.bak"
     echo '{"ok":true}'
 }
+
+get_mysql_status() {
+    if [ ! -f "$MYSQLD_BIN" ]; then
+        echo '{"error":"not installed"}'
+        exit 1
+    fi
+    if [ -f "$PIDFILE" ]; then
+        read PID < "$PIDFILE"
+        if ! kill -0 "$PID" 2>/dev/null; then
+            echo '{"error":"not running"}'
+            exit 1
+        fi
+    else
+        echo '{"error":"not running"}'
+        exit 1
+    fi
+
+    export LD_LIBRARY_PATH=/www/server/mysql/lib
+    Q() { /www/server/mysql/bin/mariadb --socket="$SOCKFILE" -uroot -N -e "$1" 2>/dev/null; }
+
+    uptime=$(Q "SHOW GLOBAL STATUS LIKE 'Uptime'" | awk '{print $2}')
+    [ -z "$uptime" ] && uptime=0
+    connections=$(Q "SHOW GLOBAL STATUS LIKE 'Connections'" | awk '{print $2}')
+    bytes_sent=$(Q "SHOW GLOBAL STATUS LIKE 'Bytes_sent'" | awk '{print $2}')
+    bytes_recv=$(Q "SHOW GLOBAL STATUS LIKE 'Bytes_received'" | awk '{print $2}')
+    questions=$(Q "SHOW GLOBAL STATUS LIKE 'Questions'" | awk '{print $2}')
+    com_commit=$(Q "SHOW GLOBAL STATUS LIKE 'Com_commit'" | awk '{print $2}')
+    com_rollback=$(Q "SHOW GLOBAL STATUS LIKE 'Com_rollback'" | awk '{print $2}')
+    threads_conn=$(Q "SHOW GLOBAL STATUS LIKE 'Threads_connected'" | awk '{print $2}')
+    max_used=$(Q "SHOW GLOBAL STATUS LIKE 'Max_used_connections'" | awk '{print $2}')
+    threads_created=$(Q "SHOW GLOBAL STATUS LIKE 'Threads_created'" | awk '{print $2}')
+    key_reads=$(Q "SHOW GLOBAL STATUS LIKE 'Key_reads'" | awk '{print $2}')
+    key_req=$(Q "SHOW GLOBAL STATUS LIKE 'Key_read_requests'" | awk '{print $2}')
+    ib_reads=$(Q "SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_reads'" | awk '{print $2}')
+    ib_req=$(Q "SHOW GLOBAL STATUS LIKE 'Innodb_buffer_pool_read_requests'" | awk '{print $2}')
+    qc_hits=$(Q "SHOW GLOBAL STATUS LIKE 'Qcache_hits'" | awk '{print $2}')
+    qc_inserts=$(Q "SHOW GLOBAL STATUS LIKE 'Qcache_inserts'" | awk '{print $2}')
+    tmp_disk=$(Q "SHOW GLOBAL STATUS LIKE 'Created_tmp_disk_tables'" | awk '{print $2}')
+    tmp_tables=$(Q "SHOW GLOBAL STATUS LIKE 'Created_tmp_tables'" | awk '{print $2}')
+    open_tables=$(Q "SHOW GLOBAL STATUS LIKE 'Open_tables'" | awk '{print $2}')
+    select_scan=$(Q "SHOW GLOBAL STATUS LIKE 'Select_scan'" | awk '{print $2}')
+    full_join=$(Q "SHOW GLOBAL STATUS LIKE 'Select_full_join'" | awk '{print $2}')
+    sort_merge=$(Q "SHOW GLOBAL STATUS LIKE 'Sort_merge_passes'" | awk '{print $2}')
+    lock_waited=$(Q "SHOW GLOBAL STATUS LIKE 'Table_locks_waited'" | awk '{print $2}')
+
+    [ -z "$connections" ] && connections=0
+    [ -z "$bytes_sent" ] && bytes_sent=0
+    [ -z "$bytes_recv" ] && bytes_recv=0
+    [ -z "$questions" ] && questions=0
+    [ -z "$com_commit" ] && com_commit=0
+    [ -z "$com_rollback" ] && com_rollback=0
+    [ -z "$threads_conn" ] && threads_conn=0
+    [ -z "$max_used" ] && max_used=0
+    [ -z "$threads_created" ] && threads_created=0
+    [ -z "$key_reads" ] && key_reads=0
+    [ -z "$key_req" ] && key_req=0
+    [ -z "$ib_reads" ] && ib_reads=0
+    [ -z "$ib_req" ] && ib_req=0
+    [ -z "$qc_hits" ] && qc_hits=0
+    [ -z "$qc_inserts" ] && qc_inserts=0
+    [ -z "$tmp_disk" ] && tmp_disk=0
+    [ -z "$tmp_tables" ] && tmp_tables=0
+    [ -z "$open_tables" ] && open_tables=0
+    [ -z "$select_scan" ] && select_scan=0
+    [ -z "$full_join" ] && full_join=0
+    [ -z "$sort_merge" ] && sort_merge=0
+    [ -z "$lock_waited" ] && lock_waited=0
+
+    start_time=$(date -d "@$(( $(date +%s) - uptime ))" '+%Y-%m-%d %H:%M:%S')
+    qps=$(( questions / (uptime>0?uptime:1) ))
+    tps=$(( (com_commit + com_rollback) / (uptime>0?uptime:1) ))
+
+    thr_hit=$(awk -v c="$connections" -v t="$threads_created" 'BEGIN{ if(c<=0){print 100.00} else printf "%.2f", (c-t)*100/c }')
+    key_hit=$(awk -v k="$key_reads" -v r="$key_req" 'BEGIN{ if(r<=0){print 100.00} else printf "%.2f", (r-k)*100/r }')
+    ib_hit=$(awk -v k="$ib_reads" -v r="$ib_req" 'BEGIN{ if(r<=0){print 100.00} else printf "%.2f", (r-k)*100/r }')
+    qc_total=$(( qc_hits + qc_inserts ))
+    if [ "$qc_total" -gt 0 ]; then
+        qc_hit=$(awk -v h="$qc_hits" -v t="$qc_total" 'BEGIN{ printf "%.2f", h*100/t }')
+    else
+        qc_hit="OFF"
+    fi
+    tmp_pct=$(awk -v d="$tmp_disk" -v t="$tmp_tables" 'BEGIN{ if(t<=0){print 0.00} else printf "%.2f", d*100/t }')
+
+    fmt_size() {
+        b=$1
+        if [ "$b" -ge 1073741824 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1073741824}") GB"
+        elif [ "$b" -ge 1048576 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1048576}") MB"
+        elif [ "$b" -ge 1024 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1024}") KB"
+        else echo "${b} B"; fi
+    }
+
+    file_name=$(Q "SHOW MASTER STATUS" | awk '{print $1}')
+    file_pos=$(Q "SHOW MASTER STATUS" | awk '{print $2}')
+    [ -z "$file_name" ] && file_name="-"
+    [ -z "$file_pos" ] && file_pos="-"
+
+    echo "{\"start_time\":\"$start_time\",\"connections\":\"$connections\",\"bytes_sent\":\"$(fmt_size "$bytes_sent")\",\"bytes_recv\":\"$(fmt_size "$bytes_recv")\",\"qps\":\"$qps\",\"tps\":\"$tps\",\"file\":\"$file_name\",\"position\":\"$file_pos\",\"threads\":\"$threads_conn/$max_used\",\"threads_hit\":\"$thr_hit%\",\"key_hit\":\"$key_hit%\",\"innodb_hit\":\"$ib_hit%\",\"qcache_hit\":\"$qc_hit\",\"tmp_disk\":\"$tmp_pct%\",\"open_tables\":\"$open_tables\",\"select_scan\":\"$select_scan\",\"full_join\":\"$full_join\",\"sort_merge\":\"$sort_merge\",\"lock_waited\":\"$lock_waited\"}"
+}
