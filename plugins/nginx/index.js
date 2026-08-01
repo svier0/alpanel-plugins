@@ -108,7 +108,7 @@ const nginx = {
         var r = await ctx.api('/api/files/read?path=/www/server/nginx/conf/nginx.conf', { method: 'GET' })
         configContent.value = r && r.content ? r.content : ''
         configLoaded.value = true
-        if (!perfLoaded.value) parsePerf(configContent.value)
+        parsePerf(configContent.value)
       } catch {
         configContent.value = ''
         configLoaded.value = true
@@ -196,7 +196,7 @@ const nginx = {
     function onTabChange(tab) {
       active.value = tab
       if (tab === 'config' && !configLoaded.value) loadConfig()
-      if (tab === 'performance') { if (!configLoaded.value) loadConfig() }
+      if (tab === 'performance') loadConfig()
       if (tab === 'errorlog' && !logLoaded.value) loadLog()
       if (tab === 'load') loadStatusDetail()
     }
