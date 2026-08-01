@@ -233,16 +233,6 @@ const nginx = {
       }, loading.value === action ? '...' : text)
     }
 
-    function bSwitch(v) {
-      return h('label', { class: 'switch' }, [
-        h('input', {
-          type: 'checkbox', checked: v.value,
-          onChange: function(e) { v.value = e.target.checked }
-        }),
-        h('span', { class: 'slider' }),
-      ])
-    }
-
     function pField(label, desc, valRef) {
       return h('div', { class: 'form' }, [
         h('label', label),
@@ -257,7 +247,14 @@ const nginx = {
     function pFieldSw(label, desc, valRef) {
       return h('div', { class: 'form' }, [
         h('label', label),
-        bSwitch(valRef),
+        h('select', {
+          class: 'slt',
+          value: valRef.value ? 'on' : 'off',
+          onChange: function(e) { valRef.value = e.target.value === 'on' },
+        }, [
+          h('option', { value: 'on' }, '开启'),
+          h('option', { value: 'off' }, '关闭'),
+        ]),
         h('span', { class: 'tip' }, desc),
       ])
     }
@@ -361,18 +358,14 @@ const nginx = {
       '.form label{font-family:monospace;color:#aaa;width:210px;flex-shrink:0}',
       '.form input{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;width:180px;outline:none}',
       '.form input:focus{border-color:#7c3aed}',
+      '.slt{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;outline:none}',
+      '.slt:focus{border-color:#7c3aed}',
       '.code{width:100%;font-family:monospace;font-size:13px;padding:10px;border:1px solid #333;border-radius:3px;background:#1a1a1a;color:#ccc;resize:vertical;box-sizing:border-box;outline:none;line-height:1.5}',
       '.code:focus{border-color:#7c3aed}',
       '.table{width:100%;border-collapse:collapse}',
       '.table th{background:#202020;color:#ccc;font-weight:500}',
       '.table th,.table td{padding:8px 14px;border-bottom:1px solid #2a2a2a;font-size:14px}',
       '.table td{color:#aaa}',
-      '.switch{position:relative;display:inline-block;width:36px;height:20px}',
-      '.switch input{opacity:0;width:0;height:0}',
-      '.slider{position:absolute;cursor:pointer;inset:0;background:#555;border-radius:20px;transition:.25s}',
-      '.slider:before{content:"";position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.25s}',
-      '.switch input:checked+.slider{background:#7c3aed}',
-      '.switch input:checked+.slider:before{transform:translateX(16px)}',
       '.toast{position:fixed;top:12px;right:20px;padding:8px 18px;border-radius:4px;font-size:13px;z-index:9999;color:#fff;background:#333}',
       '.toast.ok{background:#22c55e}',
       '.toast.err{background:#ef4444}',
