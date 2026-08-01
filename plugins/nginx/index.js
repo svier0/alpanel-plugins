@@ -108,7 +108,8 @@ const nginx = {
           method: 'POST',
           body: JSON.stringify({ path: '/www/server/nginx/conf/nginx.conf', content: configContent.value })
         })
-        toast('已保存', 'ok')
+        await ctx.api('reload')
+        toast('已保存并重载', 'ok')
       } catch (e) {
         toast('保存失败 ' + (e.message || ''), 'err')
       } finally {
