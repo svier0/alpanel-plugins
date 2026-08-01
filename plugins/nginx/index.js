@@ -276,7 +276,7 @@ const nginx = {
     function pageConfig() {
       if (!state.configLoaded.value) return spinner()
       return h('div', [
-        h('p', { class: 'tip' }, '提示：修改后请保存并重启服务生效'),
+        h('p', { class: 'tip' }, '此处为nginx主配置文件，修改请谨慎'),
         h(state.Editor, {
           modelValue: state.configContent.value,
           'onUpdate:modelValue': function(v) { state.configContent.value = v },
