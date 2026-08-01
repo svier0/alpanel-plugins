@@ -172,8 +172,6 @@ const mysql = {
       }
     }
 
-    const statusLoaded = ref(false)
-
     async function loadStatus() {
       try {
         var r = await ctx.api('get_mysql_status')
