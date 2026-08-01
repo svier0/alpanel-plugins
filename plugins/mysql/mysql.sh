@@ -406,3 +406,96 @@ get_mysql_status() {
 
     echo "{\"start_time\":\"$start_time\",\"connections\":\"$connections\",\"bytes_sent\":\"$(fmt_size "$bytes_sent")\",\"bytes_recv\":\"$(fmt_size "$bytes_recv")\",\"qps\":\"$qps\",\"tps\":\"$tps\",\"file\":\"$file_name\",\"position\":\"$file_pos\",\"threads\":\"$threads_conn/$max_used\",\"threads_hit\":\"$thr_hit%\",\"key_hit\":\"$key_hit%\",\"innodb_hit\":\"$ib_hit%\",\"qcache_hit\":\"$qc_hit\",\"tmp_disk\":\"$tmp_pct%\",\"open_tables\":\"$open_tables\",\"select_scan\":\"$select_scan\",\"full_join\":\"$full_join\",\"sort_merge\":\"$sort_merge\",\"lock_waited\":\"$lock_waited\"}"
 }
+
+binlog_enabled() {
+    export LD_LIBRARY_PATH=/www/server/mysql/lib
+    /www/server/mysql/bin/mariadb --socket="$SOCKFILE" -uroot -N -e "SHOW VARIABLES LIKE 'log_bin'" 2>/dev/null | awk '{print $2}'
+}
+
+get_mysql_binlog() {
+    if [ ! -f "$MYSQLD_BIN" ]; then
+        echo '{"error":"not installed"}'
+        exit 1
+    fi
+    enabled=$(binlog_enabled)
+    [ -z "$enabled" ] && enabled="OFF"
+    fmt_size() {
+        b=$1
+        if [ "$b" -ge 1073741824 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1073741824}") GB"
+        elif [ "$b" -ge 1048576 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1048576}") MB"
+        elif [ "$b" -ge 1024 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1024}") KB"
+        else echo "${b} B"; fi
+    }
+    total_size=0
+    logs=""
+    if [ "$enabled" = "ON" ]; then
+        while read -r name size; do
+            [ -z "$name" ] && continue
+            logfile="$DATA_DIR/$name"
+            mod_time=""
+            if [ -f "$logfile" ]; then
+                mod_time=$(date -r "$logfile" '+%Y-%m-%d %H:%M:%S')
+            fi
+            logs="$logs{\"name\":\"$name\",\"size\":\"$(fmt_size "$size")\",\"time\":\"$mod_time\"},"
+            total_size=$(( total_size + size ))
+        done << EOF
+$(/www/server/mysql/bin/mariadb --socket="$SOCKFILE" -uroot -N -e "SHOW BINARY LOGS" 2>/dev/null)
+EOF
+        logs="${logs%,}"
+    fi
+    echo "{\"enabled\":\"$enabled\",\"size\":\"$(fmt_size "$total_size")\",\"logs\":[${logs}]}"
+}
+
+set_mysql_binlog() {
+    tmp="/tmp/mysql_binlog.json"
+    if [ ! -f "$tmp" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    enable=$(jq -r '.enabled // empty' "$tmp" 2>/dev/null)
+    if [ -z "$enable" ]; then
+        echo '{"error":"bad param"}'
+        exit 1
+    fi
+    conf="$MY_CNF"
+    [ -f "$conf" ] && cp "$conf" "$conf.bak" || { echo '{"error":"conf missing"}'; exit 1; }
+
+    if [ "$enable" = "on" ]; then
+        if grep -qiE "^\s*log[-_]bin\s*=" "$conf"; then
+            sed -i "s/^\(\s*log[-_]bin\s*=\s*\).*/\1\/www\/server\/data\/mysql-bin/" "$conf"
+        else
+            sed -i "/^\[mysqld\]/a log-bin=/www/server/data/mysql-bin" "$conf"
+        fi
+        if ! grep -qiE "^\s*expire_logs_days" "$conf"; then
+            sed -i "/^\[mysqld\]/a expire_logs_days=10" "$conf"
+        fi
+    else
+        sed -i "/^\s*log[-_]bin\s*=/d" "$conf"
+        sed -i "/^\s*expire_logs_days\s*=/d" "$conf"
+    fi
+
+    rm -f "$tmp" "$conf.bak"
+    restart
+    echo '{"ok":true}'
+}
+
+delete_mysql_binlog() {
+    tmp="/tmp/mysql_binlog_del.json"
+    if [ ! -f "$tmp" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    logname=$(jq -r '.name // empty' "$tmp" 2>/dev/null)
+    if [ -z "$logname" ]; then
+        echo '{"error":"bad param"}'
+        exit 1
+    fi
+    export LD_LIBRARY_PATH=/www/server/mysql/lib
+    if /www/server/mysql/bin/mariadb --socket="$SOCKFILE" -uroot -e "PURGE BINARY LOGS TO '$logname'" >/dev/null 2>&1; then
+        rm -f "$tmp"
+        echo '{"ok":true}'
+    else
+        echo '{"error":"purge failed"}'
+        exit 1
+    fi
+}
