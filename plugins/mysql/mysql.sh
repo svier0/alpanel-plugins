@@ -257,3 +257,54 @@ reload() {
     echo "MySQL 未运行" >&2
     exit 1
 }
+
+get_mysql_value() {
+    conf="$MY_CNF"
+    getv() {
+        val=$(grep -iE "^\s*${1}\s*=" "$conf" 2>/dev/null | head -1 | cut -d= -f2 | tr -d ' ')
+        [ -n "$val" ] && echo "$val" || echo "${2}"
+    }
+    strip() { echo "$1" | sed 's/[MmKk]$//'; }
+
+    echo "{\"table_open_cache\":\"$(strip "$(getv table_open_cache 128)")\",\"thread_cache_size\":\"$(strip "$(getv thread_cache_size 16)")\",\"key_buffer_size\":\"$(strip "$(getv key_buffer_size 32M)")\",\"tmp_table_size\":\"$(strip "$(getv tmp_table_size 32M)")\",\"innodb_buffer_pool_size\":\"$(strip "$(getv innodb_buffer_pool_size 128M)")\",\"innodb_log_buffer_size\":\"$(strip "$(getv innodb_log_buffer_size 16M)")\",\"max_connections\":\"$(getv max_connections 500)\",\"sort_buffer_size\":\"$(strip "$(getv sort_buffer_size 768K)")\",\"read_buffer_size\":\"$(strip "$(getv read_buffer_size 768K)")\",\"read_rnd_buffer_size\":\"$(strip "$(getv read_rnd_buffer_size 256K)")\",\"join_buffer_size\":\"$(strip "$(getv join_buffer_size 256K)")\",\"thread_stack\":\"$(strip "$(getv thread_stack 256K)")\",\"binlog_cache_size\":\"$(strip "$(getv binlog_cache_size 32K)")\"}"
+}
+
+set_mysql_value() {
+    tmp="/tmp/mysql_perf.json"
+    if [ ! -f "$tmp" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    conf="$MY_CNF"
+    [ -f "$conf" ] && cp "$conf" "$conf.bak" || { echo '{"error":"conf missing"}'; exit 1; }
+
+    setv() {
+        key="$1"; unit="$2"
+        val=$(jq -r ".${key} // empty" "$tmp" 2>/dev/null)
+        if [ -n "$val" ]; then
+            val="${val}${unit}"
+            if grep -qiE "^\s*${key}\s*=" "$conf"; then
+                sed -i "s/^\(\s*${key}\s*=\s*\).*/\1${val}/" "$conf"
+            else
+                sed -i "/^\[mysqld\]/a ${key} = ${val}" "$conf"
+            fi
+        fi
+    }
+
+    setv table_open_cache ""
+    setv thread_cache_size ""
+    setv key_buffer_size M
+    setv tmp_table_size M
+    setv innodb_buffer_pool_size M
+    setv innodb_log_buffer_size M
+    setv max_connections ""
+    setv sort_buffer_size K
+    setv read_buffer_size K
+    setv read_rnd_buffer_size K
+    setv join_buffer_size K
+    setv thread_stack K
+    setv binlog_cache_size K
+
+    rm -f "$tmp" "$conf.bak"
+    echo '{"ok":true}'
+}
