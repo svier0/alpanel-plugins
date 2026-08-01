@@ -232,24 +232,24 @@ const nginx = {
       }, loading.value === action ? '...' : text)
     }
 
-    function pField(label, desc, valRef) {
+    function pField(label, desc, obj, key) {
       return h('div', { class: 'form' }, [
         h('label', label),
         h('input', {
-          value: valRef.value,
-          onInput: function(e) { valRef.value = e.target.value },
+          value: obj[key],
+          onInput: function(e) { obj[key] = e.target.value },
         }),
         h('span', { class: 'tip' }, desc),
       ])
     }
 
-    function pFieldSw(label, desc, valRef) {
+    function pFieldSw(label, desc, obj, key) {
       return h('div', { class: 'form' }, [
         h('label', label),
         h('select', {
           class: 'slt',
-          value: valRef.value ? 'on' : 'off',
-          onChange: function(e) { valRef.value = e.target.value === 'on' },
+          value: obj[key] ? 'on' : 'off',
+          onChange: function(e) { obj[key] = e.target.value === 'on' },
         }, [
           h('option', { value: 'on' }, '开启'),
           h('option', { value: 'off' }, '关闭'),
@@ -283,16 +283,16 @@ const nginx = {
 
       performance: h('div', [
         h('p', { class: 'tip' }, '提示：修改后请保存并重载Nginx生效'),
-        pField('worker_processes', '进程数,auto或数字', state.perf.worker_processes),
-        pField('worker_connections', '最大并发连接数', state.perf.worker_connections),
-        pField('keepalive_timeout', '连接超时(秒)', state.perf.keepalive_timeout),
-        pFieldSw('gzip', '是否启用压缩', state.perf.gzip),
-        pField('gzip_min_length', '最小压缩(KB)', state.perf.gzip_min_length),
-        pField('gzip_comp_level', '压缩等级1-9', state.perf.gzip_comp_level),
-        pField('client_max_body_size', '最大上传(如50m)', state.perf.client_max_body_size),
-        pField('server_names_hash_bucket_size', 'hash表大小', state.perf.server_names_hash_bucket_size),
-        pField('client_header_buffer_size', '请求头buffer(如32k)', state.perf.client_header_buffer_size),
-        pField('client_body_buffer_size', '请求体buffer(如512k)', state.perf.client_body_buffer_size),
+        pField('worker_processes', '进程数,auto或数字', state.perf, 'worker_processes'),
+        pField('worker_connections', '最大并发连接数', state.perf, 'worker_connections'),
+        pField('keepalive_timeout', '连接超时(秒)', state.perf, 'keepalive_timeout'),
+        pFieldSw('gzip', '是否启用压缩', state.perf, 'gzip'),
+        pField('gzip_min_length', '最小压缩(KB)', state.perf, 'gzip_min_length'),
+        pField('gzip_comp_level', '压缩等级1-9', state.perf, 'gzip_comp_level'),
+        pField('client_max_body_size', '最大上传(如50m)', state.perf, 'client_max_body_size'),
+        pField('server_names_hash_bucket_size', 'hash表大小', state.perf, 'server_names_hash_bucket_size'),
+        pField('client_header_buffer_size', '请求头buffer(如32k)', state.perf, 'client_header_buffer_size'),
+        pField('client_body_buffer_size', '请求体buffer(如512k)', state.perf, 'client_body_buffer_size'),
         h('div', { class: 'row' }, [
           h('button', { class: 'btn primary', onClick: state.savePerformance },
             state.perfSaving.value ? '保存中...' : '保存'),
