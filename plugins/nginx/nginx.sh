@@ -298,8 +298,15 @@ get_nginx_value() {
 }
 
 set_nginx_value() {
-    tmp="/tmp/nginx_perf.json"
-    if [ ! -f "$tmp" ]; then
+    tmp=""
+    if [ -n "${PLUGIN_ARGS:-}" ]; then
+        tmp=$(mktemp)
+        echo "$PLUGIN_ARGS" > "$tmp"
+    fi
+    if [ -z "$tmp" ] && [ -f "/tmp/nginx_perf.json" ]; then
+        tmp="/tmp/nginx_perf.json"
+    fi
+    if [ -z "$tmp" ]; then
         echo '{"error":"no data"}'
         exit 1
     fi

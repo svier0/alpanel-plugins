@@ -152,11 +152,7 @@ const nginx = {
           client_header_buffer_size: perf.client_header_buffer_size,
           client_body_buffer_size: perf.client_body_buffer_size,
         }
-        await ctx.api('/api/files/write', {
-          method: 'POST',
-          body: JSON.stringify({ path: '/tmp/nginx_perf.json', content: JSON.stringify(data) })
-        })
-        var r = await ctx.api('set_nginx_value')
+        var r = await ctx.api('set_nginx_value', { body: JSON.stringify(data) })
         var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
         if (d.ok) {
           toast('已保存', 'ok')
