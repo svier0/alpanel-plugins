@@ -271,6 +271,7 @@ const mysql = {
         h(state.Editor, {
           modelValue: state.configContent.value,
           'onUpdate:modelValue': function(v) { state.configContent.value = v },
+          language: 'ini',
         }),
         h('div', { class: 'row' }, [
           h('button', { class: 'btn', onClick: state.saveConfig },
