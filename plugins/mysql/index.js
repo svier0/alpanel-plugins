@@ -49,6 +49,14 @@ const mysql = {
     })
     const statusLoaded = ref(false)
 
+    const binlog = reactive({
+      enabled: false,
+      size: '',
+      logs: [],
+    })
+    const binlogLoaded = ref(false)
+    const binlogSaving = ref(false)
+
     const toastMsg = ref('')
     const toastType = ref('')
 
@@ -89,8 +97,11 @@ const mysql = {
 
     async function loadConfig() {
       try {
-        var r = await ctx.api('/api/files/read?path=/www/server/mysql/conf/my.cnf', { method: 'GET' })
-        configContent.value = (r && r.content) ? r.content : ''
+        var r = await ctx.api('get_mysql_config')
+        if (r && r.stdout) {
+          var d = JSON.parse(r.stdout)
+          configContent.value = (d.content) ? d.content : ''
+        }
       } catch (e) {
         configContent.value = ''
       }
@@ -100,12 +111,13 @@ const mysql = {
     async function saveConfig() {
       configSaving.value = true
       try {
-        await ctx.api('/api/files/write', {
-          method: 'POST',
-          body: JSON.stringify({ path: '/www/server/mysql/conf/my.cnf', content: configContent.value })
-        })
-        await ctx.api('reload')
-        toast('已保存并重载', 'ok')
+        var r = await ctx.api('save_mysql_config', { body: JSON.stringify({ content: configContent.value }) })
+        var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+        if (d.ok) {
+          toast('已保存并重载', 'ok')
+        } else {
+          toast(d.error || '保存失败', 'err')
+        }
       } catch (e) {
         toast('保存失败 ' + (e.message || ''), 'err')
       } finally {
@@ -154,11 +166,7 @@ const mysql = {
           thread_stack: perf.thread_stack,
           binlog_cache_size: perf.binlog_cache_size,
         }
-        await ctx.api('/api/files/write', {
-          method: 'POST',
-          body: JSON.stringify({ path: '/tmp/mysql_perf.json', content: JSON.stringify(data) })
-        })
-        var r = await ctx.api('set_mysql_value')
+        var r = await ctx.api('set_mysql_value', { body: JSON.stringify(data) })
         var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
         if (d.ok) {
           toast('已保存，需重启数据库生效', 'ok')
@@ -203,8 +211,11 @@ const mysql = {
 
     async function loadErrLog() {
       try {
-        var r = await ctx.api('/api/files/read?path=/www/wwwlogs/mysql_error.log', { method: 'GET' })
-        errLogContent.value = (r && r.content) ? r.content : ''
+        var r = await ctx.api('get_mysql_log', { body: JSON.stringify({ path: '/www/wwwlogs/mysql_error.log' }) })
+        if (r && r.stdout) {
+          var d = JSON.parse(r.stdout)
+          errLogContent.value = (d.content) ? d.content : ''
+        }
       } catch (e) {
         errLogContent.value = ''
       }
@@ -213,12 +224,62 @@ const mysql = {
 
     async function loadSlowLog() {
       try {
-        var r = await ctx.api('/api/files/read?path=/www/server/data/SVIER-slow.log', { method: 'GET' })
-        slowLogContent.value = (r && r.content) ? r.content : ''
+        var r = await ctx.api('get_mysql_log', { body: JSON.stringify({ path: '/www/server/data/SVIER-slow.log' }) })
+        if (r && r.stdout) {
+          var d = JSON.parse(r.stdout)
+          slowLogContent.value = (d.content) ? d.content : ''
+        }
       } catch (e) {
         slowLogContent.value = ''
       }
       slowLogLoaded.value = true
+    }
+
+    async function loadBinlog() {
+      try {
+        var r = await ctx.api('get_mysql_binlog')
+        if (r && r.stdout) {
+          var d = JSON.parse(r.stdout)
+          binlog.enabled = d.enabled === 'ON'
+          binlog.size = d.size || ''
+          binlog.logs = d.logs || []
+        }
+      } catch (e) {}
+      binlogLoaded.value = true
+    }
+
+    async function setBinlog(on) {
+      binlogSaving.value = true
+      try {
+        var r = await ctx.api('set_mysql_binlog', { body: JSON.stringify({ enabled: on ? 'on' : 'off' }) })
+        var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+        if (d.ok) {
+          toast('已' + (on ? '开启' : '关闭') + '，数据库已重启', 'ok')
+        } else {
+          toast(d.error || '操作失败', 'err')
+        }
+      } catch (e) {
+        toast('操作失败 ' + (e.message || ''), 'err')
+      } finally {
+        binlogSaving.value = false
+      }
+      binlogLoaded.value = false
+      loadBinlog()
+    }
+
+    async function deleteBinlog(name) {
+      try {
+        var r = await ctx.api('delete_mysql_binlog', { body: JSON.stringify({ name: name }) })
+        var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+        if (d.ok) {
+          toast('已删除 ' + name, 'ok')
+        } else {
+          toast(d.error || '删除失败', 'err')
+        }
+      } catch (e) {
+        toast('删除失败 ' + (e.message || ''), 'err')
+      }
+      loadBinlog()
     }
 
     var loading = ref(false)
@@ -231,6 +292,7 @@ const mysql = {
       if (tab === 'errorlog' && !errLogLoaded.value)   { loading.value = true; loadErrLog().finally(function() { loading.value = false }) }
       if (tab === 'slowlog' && !slowLogLoaded.value)   { loading.value = true; loadSlowLog().finally(function() { loading.value = false }) }
       if (tab === 'load' && !statusLoaded.value)       { loading.value = true; loadStatus().finally(function() { loading.value = false }) }
+      if (tab === 'binlog' && !binlogLoaded.value)     { loading.value = true; loadBinlog().finally(function() { loading.value = false }) }
     }
 
     checkStatus()
@@ -243,10 +305,12 @@ const mysql = {
       errLogContent, errLogLoaded,
       slowLogContent, slowLogLoaded,
       statusInfo, statusLoaded,
+      binlog, binlogLoaded, binlogSaving,
       toastMsg, toastType, loading,
       checkStatus, control, loadConfig, saveConfig,
       loadPerf, savePerformance,
       loadErrLog, loadSlowLog, loadStatus, switchTab,
+      setBinlog, deleteBinlog, loadBinlog,
       Editor,
     }
   },
@@ -389,6 +453,36 @@ const mysql = {
       ])
     }
 
+    function pageBinlog() {
+      if (!state.binlogLoaded.value) return spinner()
+      var b = state.binlog
+      var switchBtn = h('button', {
+        class: ['btn', state.binlogSaving.value ? 'loading' : ''],
+        onClick: function() { state.setBinlog(!b.enabled) },
+      }, state.binlogSaving.value ? '处理中...' : (b.enabled ? '关闭二进制日志' : '开启二进制日志'))
+      return h('div', [
+        h('div', { class: 'sw' }, [
+          switchBtn,
+          h('span', { class: 'sw-label' }, '状态: ' + (b.enabled ? '已开启' : '未开启')),
+          h('span', { class: 'sw-tip' }, '总大小: ' + b.size),
+        ]),
+        h('p', { class: 'tip' }, '温馨提示：开启后需重启数据库生效；二进制日志用于数据恢复与主从复制，会占用磁盘空间，请定期清理。'),
+        h('table', { class: 'table' }, [
+          h('thead', [h('tr', [h('th', '文件名'), h('th', '大小'), h('th', '最后修改时间'), h('th', '操作')])]),
+          h('tbody', (b.logs && b.logs.length)
+            ? b.logs.map(function(log) {
+                return h('tr', [
+                  h('td', log.name),
+                  h('td', log.size),
+                  h('td', log.time || '-'),
+                  h('td', h('a', { class: 'dl-link', onClick: function() { state.deleteBinlog(log.name) } }, '删除')),
+                ])
+              })
+            : [h('tr', [h('td', { attrs: { colspan: 4 } }, '未开启二进制日志，无日志文件')])]),
+        ]),
+      ])
+    }
+
     var pages = {
       service:     pageService(),
       config:      pageConfig(),
@@ -396,7 +490,7 @@ const mysql = {
       load:        pageLoad(),
       errorlog:    pageErrLog(),
       slowlog:     pageSlowLog(),
-      binlog:      placeholder(),
+      binlog:      pageBinlog(),
       port:        placeholder(),
     }
 
@@ -434,6 +528,12 @@ const mysql = {
       '.off{color:red;font-weight:bold}',
       '.tip{color:#666;font-size:13px}',
       '.ph{padding:40px 0;text-align:center}',
+      '.form{display:flex;align-items:center;gap:10px;margin-bottom:12px}',
+      '.form label{font-family:monospace;color:#aaa;font-size:13px;width:210px;flex-shrink:0}',
+      '.form input{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;width:58px;outline:none}',
+      '.form input:focus{border-color:#409eff}',
+      '.slt{padding:5px 10px;border:1px solid #555;background:#1a1a1a;color:#ccc;border-radius:3px;font-size:13px;outline:none;cursor:pointer;width:80px}',
+      '.slt:focus{border-color:#409eff}',
       '.table{width:100%;border-collapse:collapse;margin-top:4px}',
       '.table + .table{margin-top:20px}',
       '.table.kv{border:1px solid #2a2a2a}',
@@ -442,6 +542,11 @@ const mysql = {
       '.table th,.table td{padding:8px 14px;border-bottom:1px solid #2a2a2a;font-size:14px}',
       '.table td{color:#aaa}',
       '.table tr td:nth-child(2n){width:26%}',
+      '.sw{display:flex;align-items:center;gap:8px;margin-bottom:14px}',
+      '.sw-label{font-size:14px;color:#ccc}',
+      '.sw-tip{color:#666;font-size:13px}',
+      '.dl-link{color:#f56c6c;cursor:pointer;font-size:13px}',
+      '.dl-link:hover{text-decoration:underline}',
       '.plugin-editor{font-size:13px;min-height:200px}',
       '.plugin-editor .cm-editor{outline:none}',
       '.plugin-editor .cm-scroller{font-family:monospace;line-height:1.5}',
