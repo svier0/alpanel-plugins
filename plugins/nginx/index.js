@@ -202,10 +202,12 @@ const nginx = {
     function switchTab(tab) {
       if (tab === activeTab.value) return
       activeTab.value = tab
-      if (tab === 'config' && !configLoaded.value)      { loading.value = true; loadConfig().finally(function() { loading.value = false }) }
-      if (tab === 'performance' && !perfLoaded.value)    { loading.value = true; loadPerf().finally(function() { loading.value = false }) }
-      if (tab === 'errorlog' && !logLoaded.value)        { loading.value = true; loadLog().finally(function() { loading.value = false }) }
-      if (tab === 'load' && !loadLoaded.value)           { loading.value = true; loadStatus().finally(function() { loading.value = false }) }
+      loading.value = true
+      if (tab === 'config')       { loadConfig().finally(function() { loading.value = false }) }
+      else if (tab === 'performance') { loadPerf().finally(function() { loading.value = false }) }
+      else if (tab === 'errorlog')    { loadLog().finally(function() { loading.value = false }) }
+      else if (tab === 'load')        { loadStatus().finally(function() { loading.value = false }) }
+      else loading.value = false
     }
 
     checkStatus()

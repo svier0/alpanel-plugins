@@ -115,7 +115,6 @@ const mysql = {
         var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
         if (d.ok) {
           toast('已保存并重载', 'ok')
-          perfLoaded.value = false
         } else {
           toast(d.error || '保存失败', 'err')
         }
@@ -171,8 +170,6 @@ const mysql = {
         var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
         if (d.ok) {
           toast('已保存，需重启数据库生效', 'ok')
-          configLoaded.value = false
-          loadConfig()
         } else {
           toast(d.error || '保存失败', 'err')
         }
@@ -290,12 +287,14 @@ const mysql = {
     function switchTab(tab) {
       if (tab === activeTab.value) return
       activeTab.value = tab
-      if (tab === 'config' && !configLoaded.value)     { loading.value = true; loadConfig().finally(function() { loading.value = false }) }
-      if (tab === 'performance' && !perfLoaded.value)  { loading.value = true; loadPerf().finally(function() { loading.value = false }) }
-      if (tab === 'errorlog' && !errLogLoaded.value)   { loading.value = true; loadErrLog().finally(function() { loading.value = false }) }
-      if (tab === 'slowlog' && !slowLogLoaded.value)   { loading.value = true; loadSlowLog().finally(function() { loading.value = false }) }
-      if (tab === 'load' && !statusLoaded.value)       { loading.value = true; loadStatus().finally(function() { loading.value = false }) }
-      if (tab === 'binlog' && !binlogLoaded.value)     { loading.value = true; loadBinlog().finally(function() { loading.value = false }) }
+      loading.value = true
+      if (tab === 'config')       { loadConfig().finally(function() { loading.value = false }) }
+      else if (tab === 'performance') { loadPerf().finally(function() { loading.value = false }) }
+      else if (tab === 'errorlog')    { loadErrLog().finally(function() { loading.value = false }) }
+      else if (tab === 'slowlog')     { loadSlowLog().finally(function() { loading.value = false }) }
+      else if (tab === 'load')        { loadStatus().finally(function() { loading.value = false }) }
+      else if (tab === 'binlog')      { loadBinlog().finally(function() { loading.value = false }) }
+      else loading.value = false
     }
 
     checkStatus()
