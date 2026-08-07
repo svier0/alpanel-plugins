@@ -5,5 +5,5 @@
   "versions": "1.0",
   "author": "alpanel",
   "home": "https://github.com/svier0/alpanel",
-  "func": "get_version|get_mysql_value|set_mysql_value|get_mysql_status|get_mysql_binlog|set_mysql_binlog|delete_mysql_binlog|get_mysql_config|save_mysql_config|get_mysql_log"
+  "func": "get_version|get_mysql_value|set_mysql_value|get_mysql_status|get_mysql_binlog|set_mysql_binlog|delete_mysql_binlog|get_mysql_config|save_mysql_config|get_mysql_log|get_mysql_port|set_mysql_port"
 }

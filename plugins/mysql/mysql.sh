@@ -565,3 +565,38 @@ delete_mysql_binlog() {
         exit 1
     fi
 }
+
+get_mysql_port() {
+    port=$(grep -iE "^\s*port\s*=" "$MY_CNF" 2>/dev/null | head -1 | cut -d= -f2 | tr -d ' ')
+    [ -z "$port" ] && port="3306"
+    echo "{\"port\":\"$port\"}"
+}
+
+set_mysql_port() {
+    tmp=""
+    if [ -n "${PLUGIN_ARGS:-}" ]; then
+        tmp=$(mktemp)
+        echo "$PLUGIN_ARGS" > "$tmp"
+    fi
+    if [ -z "$tmp" ] && [ -f "/tmp/mysql_port.json" ]; then
+        tmp="/tmp/mysql_port.json"
+    fi
+    if [ -z "$tmp" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    port=$(jq -r '.port // empty' "$tmp" 2>/dev/null)
+    if [ -z "$port" ] || ! echo "$port" | grep -qE '^[0-9]+$'; then
+        echo '{"error":"bad port"}'
+        exit 1
+    fi
+    cp "$MY_CNF" "$MY_CNF.bak"
+    if grep -qiE "^\s*port\s*=" "$MY_CNF"; then
+        sed -i "s/^\(\s*port\s*=\s*\).*/\1${port}/" "$MY_CNF"
+    else
+        sed -i "/^\[mysqld\]/a port = ${port}" "$MY_CNF"
+    fi
+    rm -f "$MY_CNF.bak"
+    restart >/dev/null 2>&1
+    echo '{"ok":true}'
+}

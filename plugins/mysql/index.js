@@ -57,6 +57,9 @@ const mysql = {
     const binlogLoaded = ref(false)
     const binlogSaving = ref(false)
 
+    const portVal = ref('3306')
+    const portSaving = ref(false)
+
     const toastMsg = ref('')
     const toastType = ref('')
 
@@ -282,6 +285,33 @@ const mysql = {
       loadBinlog()
     }
 
+    async function loadPort() {
+      try {
+        var r = await ctx.api('get_mysql_port')
+        if (r && r.stdout) {
+          var d = JSON.parse(r.stdout)
+          portVal.value = d.port || '3306'
+        }
+      } catch (e) {}
+    }
+
+    async function savePort() {
+      portSaving.value = true
+      try {
+        var r = await ctx.api('set_mysql_port', { body: JSON.stringify({ port: portVal.value }) })
+        var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+        if (d.ok) {
+          toast('已保存，数据库已重启', 'ok')
+        } else {
+          toast(d.error || '保存失败', 'err')
+        }
+      } catch (e) {
+        toast('保存失败 ' + (e.message || ''), 'err')
+      } finally {
+        portSaving.value = false
+      }
+    }
+
     var loading = ref(false)
 
     function switchTab(tab) {
@@ -294,6 +324,7 @@ const mysql = {
       else if (tab === 'slowlog')     { loadSlowLog().finally(function() { loading.value = false }) }
       else if (tab === 'load')        { loadStatus().finally(function() { loading.value = false }) }
       else if (tab === 'binlog')      { loadBinlog().finally(function() { loading.value = false }) }
+      else if (tab === 'port')        { loadPort().finally(function() { loading.value = false }) }
       else loading.value = false
     }
 
@@ -308,11 +339,12 @@ const mysql = {
       slowLogContent, slowLogLoaded,
       statusInfo, statusLoaded,
       binlog, binlogLoaded, binlogSaving,
+      portVal, portSaving,
       toastMsg, toastType, loading,
       checkStatus, control, loadConfig, saveConfig,
       loadPerf, savePerformance,
       loadErrLog, loadSlowLog, loadStatus, switchTab,
-      setBinlog, deleteBinlog, loadBinlog,
+      setBinlog, deleteBinlog, loadBinlog, loadPort, savePort,
       Editor,
     }
   },
@@ -347,12 +379,6 @@ const mysql = {
           onInput: function(e) { obj[key] = e.target.value },
         }),
         h('span', { class: 'tip' }, tip),
-      ])
-    }
-
-    function placeholder() {
-      return h('div', { class: 'ph' }, [
-        h('p', { class: 'tip' }, '功能开发中，敬请期待'),
       ])
     }
 
@@ -487,6 +513,23 @@ const mysql = {
       ])
     }
 
+    function pagePort() {
+      return h('div', [
+        h('div', { class: 'form' }, [
+          h('label', '端口'),
+          h('input', {
+            size: 8,
+            value: state.portVal.value,
+            onInput: function(e) { state.portVal.value = e.target.value },
+          }),
+        ]),
+        h('div', { class: 'row' }, [
+          h('button', { class: 'btn', onClick: state.savePort },
+            state.portSaving.value ? '保存中...' : '保存'),
+        ]),
+      ])
+    }
+
     var pages = {
       service:     pageService(),
       config:      pageConfig(),
@@ -495,7 +538,7 @@ const mysql = {
       errorlog:    pageErrLog(),
       slowlog:     pageSlowLog(),
       binlog:      pageBinlog(),
-      port:        placeholder(),
+      port:        pagePort(),
     }
 
     return h('div', { class: 'app' }, [
