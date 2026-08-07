@@ -115,6 +115,7 @@ const mysql = {
         var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
         if (d.ok) {
           toast('已保存并重载', 'ok')
+          perfLoaded.value = false
         } else {
           toast(d.error || '保存失败', 'err')
         }
@@ -170,6 +171,8 @@ const mysql = {
         var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
         if (d.ok) {
           toast('已保存，需重启数据库生效', 'ok')
+          configLoaded.value = false
+          loadConfig()
         } else {
           toast(d.error || '保存失败', 'err')
         }
