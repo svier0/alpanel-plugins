@@ -170,7 +170,7 @@ get_version() {
         echo "未安装"
         exit 1
     fi
-    "$PHP_BIN" -v 2>&1 | sed 's/PHP \([0-9.]*\).*/\1/'
+    "$PHP_BIN" -v 2>&1 | sed -n 's/PHP \([0-9.]*\).*/\1/p' | head -1
 }
 
 status() {
