@@ -338,7 +338,6 @@ const php82 = {
                     }, state.actionLoading.value === action ? '...' : text)
                 }
                 return h('div', [
-                    h('h4', '版本：' + (state.version.value || '未知')),
                     h('p', [
                         '当前状态：' + (running ? '' : '未') + '运行',
                         h('span', { class: running ? 'on' : 'off' }, running ? ' \u25b6' : ' \u23f8'),
