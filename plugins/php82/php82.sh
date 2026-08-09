@@ -96,7 +96,6 @@ install() {
     mkdir -p "$RUN_DIR" "$VARLOG_DIR"
     wget -q --timeout=10 "$PHP_RAW/conf/php-fpm.conf" -O "$FPM_CONF" \
         || { echo "错误: 下载 php-fpm.conf 失败" >&2; rm -rf "$dl_dir" "$ext_dir"; exit 1; }
-    sed -i "s|__VER__|$VER|g" "$FPM_CONF"
 
     cat > "/etc/init.d/php$VER" << 'PHINIT'
 #!/bin/sh
