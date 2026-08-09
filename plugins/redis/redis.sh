@@ -253,7 +253,7 @@ get_redis_status() {
     fi
 
     gf() {
-        echo "$info" | sed -n "s/^${1}:\(.*\)$/\1/p" | head -1
+        echo "$info" | sed -n "s/^${1}:\(.*\)$/\1/p" | head -1 | tr -d '\r'
     }
 
     uptime_in_days=$(gf uptime_in_days)
@@ -291,7 +291,10 @@ get_redis_status() {
     fi
 
     fmt_size() {
-        b=$1
+        b=$(echo "$1" | tr -d '\r')
+        case "$b" in
+            ''|*[!0-9]*) b=0 ;;
+        esac
         if [ "$b" -ge 1073741824 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1073741824}") GB"
         elif [ "$b" -ge 1048576 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1048576}") MB"
         elif [ "$b" -ge 1024 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1024}") KB"
@@ -364,5 +367,30 @@ set_redis_value() {
     rm -f "$tmp"
     restart >/dev/null 2>&1
     rm -f "$conf.bak"
+    echo '{"ok":true}'
+}
+
+get_redis_config() {
+    if [ ! -f "$REDIS_CONF" ]; then
+        echo '{"error":"conf missing"}'
+        exit 1
+    fi
+    echo "{\"content\":$(cat "$REDIS_CONF" | jq -Rs .)}"
+}
+
+save_redis_config() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    content=$(echo "$PLUGIN_ARGS" | jq -r '.content // empty')
+    if [ -z "$content" ]; then
+        echo '{"error":"bad content"}'
+        exit 1
+    fi
+    [ -f "$REDIS_CONF" ] && cp "$REDIS_CONF" "$REDIS_CONF.bak" || { echo '{"error":"conf missing"}'; exit 1; }
+    printf '%s\n' "$content" > "$REDIS_CONF"
+    rm -f "$REDIS_CONF.bak"
+    restart >/dev/null 2>&1
     echo '{"ok":true}'
 }
