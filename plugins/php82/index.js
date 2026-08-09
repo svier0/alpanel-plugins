@@ -252,7 +252,7 @@ const php82 = {
         // —— 日志页 ——
         async function loadLog() {
             try {
-                var r = await ctx.api('/api/files/read?path=/www/wwwlogs/php-fpm82.log', { method: 'GET' })
+                var r = await ctx.api('/api/files/read?path=/www/server/php/82/var/log/php-fpm.log', { method: 'GET' })
                 logContent.value = (r && r.content) ? r.content : ''
             } catch (e) {
                 logContent.value = ''
@@ -262,7 +262,7 @@ const php82 = {
         // —— 慢日志页 ——
         async function loadSlowlog() {
             try {
-                var r = await ctx.api('/api/files/read?path=/www/wwwlogs/php_slow_82.log', { method: 'GET' })
+                var r = await ctx.api('/api/files/read?path=/www/server/php/82/var/log/slow.log', { method: 'GET' })
                 slowlogContent.value = (r && r.content) ? r.content : ''
             } catch (e) {
                 slowlogContent.value = ''
