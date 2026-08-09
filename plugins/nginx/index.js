@@ -93,8 +93,9 @@ const nginx = {
 
     async function loadConfig() {
       try {
-        var r = await ctx.api('/api/files/read?path=/www/server/nginx/conf/nginx.conf', { method: 'GET' })
-        configContent.value = (r && r.content) ? r.content : ''
+        var r = await ctx.api('get_nginx_config')
+        var d = JSON.parse(r.stdout)
+        configContent.value = (d.content) ? d.content : ''
       } catch (e) {
         configContent.value = ''
       }
@@ -104,12 +105,13 @@ const nginx = {
     async function saveConfig() {
       configSaving.value = true
       try {
-        await ctx.api('/api/files/write', {
-          method: 'POST',
-          body: JSON.stringify({ path: '/www/server/nginx/conf/nginx.conf', content: configContent.value })
-        })
-        await ctx.api('reload')
-        toast('已保存并重载', 'ok')
+        var r = await ctx.api('save_nginx_config', { body: JSON.stringify({ content: configContent.value }) })
+        var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+        if (d.ok) {
+          toast('已保存并重载', 'ok')
+        } else {
+          toast(d.error || '保存失败', 'err')
+        }
       } catch (e) {
         toast('保存失败 ' + (e.message || ''), 'err')
       } finally {

@@ -312,3 +312,35 @@ set_nginx_value() {
         exit 1
     fi
 }
+
+get_nginx_config() {
+    if [ ! -f "$NGINX_CONF" ]; then
+        echo '{"error":"conf missing"}'
+        exit 1
+    fi
+    echo "{\"content\":$(cat "$NGINX_CONF" | jq -Rs .)}"
+}
+
+save_nginx_config() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    content=$(echo "$PLUGIN_ARGS" | jq -r '.content // empty')
+    if [ -z "$content" ]; then
+        echo '{"error":"bad content"}'
+        exit 1
+    fi
+    [ -f "$NGINX_CONF" ] && cp "$NGINX_CONF" "$NGINX_CONF.bak" || { echo '{"error":"conf missing"}'; exit 1; }
+    printf '%s\n' "$content" > "$NGINX_CONF"
+    if "$NGINX_BIN" -t -c "$NGINX_CONF" 2>/dev/null; then
+        rm -f "$NGINX_CONF.bak"
+        reload >/dev/null 2>&1
+        echo '{"ok":true}'
+    else
+        cp "$NGINX_CONF.bak" "$NGINX_CONF"
+        rm -f "$NGINX_CONF.bak"
+        echo '{"error":"config test failed"}'
+        exit 1
+    fi
+}
