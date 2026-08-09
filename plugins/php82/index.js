@@ -539,9 +539,6 @@ const php82 = {
                         h('tbody', rows))
                 }
                 return h('div', [
-                    h('div', { class: 'row' }, [
-                        h('button', { class: 'btn', onClick: state.loadStatus }, '刷新'),
-                    ]),
                     content,
                 ])
             },
