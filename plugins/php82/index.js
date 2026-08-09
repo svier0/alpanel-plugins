@@ -139,6 +139,60 @@ const php82 = {
             }
         }
 
+        // —— 性能调整页 ——
+        const perf = reactive({
+            listen: '/tmp/php-cgi-82.sock',
+            allowed_clients: '127.0.0.1',
+            pm: '按需模式',
+            max_children: '30',
+            start_servers: '5',
+            min_spare_servers: '5',
+            max_spare_servers: '10',
+        })
+        const perfSaving = ref(false)
+
+        async function loadPerf() {
+            try {
+                var r = await ctx.api('get_fpm_value')
+                if (r && r.stdout) {
+                    var d = JSON.parse(r.stdout)
+                    perf.listen = d.listen || '/tmp/php-cgi-82.sock'
+                    perf.allowed_clients = d.allowed_clients || '127.0.0.1'
+                    perf.pm = (d.pm === 'static') ? '静态模式' : (d.pm === 'dynamic' ? '动态模式' : '按需模式')
+                    perf.max_children = d.max_children || '30'
+                    perf.start_servers = d.start_servers || '5'
+                    perf.min_spare_servers = d.min_spare_servers || '5'
+                    perf.max_spare_servers = d.max_spare_servers || '10'
+                }
+            } catch (e) {}
+        }
+
+        async function savePerf() {
+            perfSaving.value = true
+            try {
+                var data = {
+                    listen: perf.listen,
+                    allowed_clients: perf.allowed_clients,
+                    pm: perf.pm === '静态模式' ? 'static' : (perf.pm === '动态模式' ? 'dynamic' : 'ondemand'),
+                    max_children: perf.max_children,
+                    start_servers: perf.start_servers,
+                    min_spare_servers: perf.min_spare_servers,
+                    max_spare_servers: perf.max_spare_servers,
+                }
+                var r = await ctx.api('set_fpm_value', { body: JSON.stringify(data) })
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                if (d.ok) {
+                    toast('已保存，请重启PHP生效', 'ok')
+                } else {
+                    toast(d.error || '保存失败', 'err')
+                }
+            } catch (e) {
+                toast('保存失败 ' + (e.message || ''), 'err')
+            } finally {
+                perfSaving.value = false
+            }
+        }
+
         // —— 配置文件页 ——
         async function loadPhpIni() {
             try {
@@ -218,11 +272,13 @@ const php82 = {
         return {
             Editor, running, version, actionLoading,
             adjust, adjustSaving,
+            perf, perfSaving,
             iniContent, iniSaving,
             fpmContent, fpmSaving,
             logContent, slowlogContent,
             checkStatus, getVersion, control,
             loadAdjust, saveAdjust,
+            loadPerf, savePerf,
             loadPhpIni, savePhpIni,
             loadFpmConf, saveFpmConf,
             loadLog, loadSlowlog,
@@ -326,10 +382,49 @@ const php82 = {
 
         // —— 性能调整 ——
         performance: {
-            onLoad() {},
+            onLoad(ctx, state) { return state.loadPerf() },
             render(h, state) {
+                var p = state.perf
+                const field = function(label, tip, key) {
+                    return [
+                        h('label', label),
+                        h('input', {
+                            value: p[key] || '',
+                            onInput: function(e) { p[key] = e.target.value },
+                        }),
+                        h('span', { class: 'tip' }, tip),
+                    ]
+                }
                 return h('div', [
-                    h('p', { class: 'tip' }, '功能开发中'),
+                    h('div', { class: 'form-grid' }, [
+                        ...field('监听地址', '/tmp/php-cgi-82.sock 绑定IP:监听端口或Unix套接字地址', 'listen'),
+                        ...field('IP白名单', '允许访问PHP的IP，多个请用逗号隔开', 'allowed_clients'),
+                        h('label', '运行模式'),
+                        h('select', { class: 'slt', value: p.pm,
+                            onChange: function(e) { p.pm = e.target.value } },
+                            [
+                                h('option', { value: '按需模式' }, '按需模式'),
+                                h('option', { value: '静态模式' }, '静态模式'),
+                                h('option', { value: '动态模式' }, '动态模式'),
+                            ]),
+                        h('span', { class: 'tip' }, 'PHP-FPM运行模式'),
+                        ...field('max_children', '允许创建的最大子进程数', 'max_children'),
+                        ...field('start_servers', '起始进程数（服务启动后初始进程数量）', 'start_servers'),
+                        ...field('min_spare_servers', '最小空闲进程数（清理空闲进程后的保留数量）', 'min_spare_servers'),
+                        ...field('max_spare_servers', '最大空闲进程数（当空闲进程达到此值时清理）', 'max_spare_servers'),
+                    ]),
+                    h('div', { class: 'row' }, [
+                        h('button', { class: 'btn', onClick: state.savePerf },
+                            state.perfSaving.value ? '保存中...' : '保存'),
+                    ]),
+                    h('div', { class: 'tips' }, [
+                        h('p', '【最大子进程数量】越大，并发能力越强，但max_children最大不要超过5000'),
+                        h('p', '【内存】每个PHP子进程需要20MB左右内存，过大的max_children会导致服务器不稳定'),
+                        h('p', '【静态模式】始终维持设置的子进程数量，对内存开销较大，但并发能力较好'),
+                        h('p', '【动态模式】按设置最大空闲进程数来收回进程，内存开销小，建议小内存机器使用'),
+                        h('p', '【按需模式】根据访问需求自动创建进程，内存开销极小，但并发能力略差'),
+                        h('p', '调整完配置需要重启PHP才会生效'),
+                    ]),
                 ])
             },
         },
