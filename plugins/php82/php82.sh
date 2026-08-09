@@ -372,3 +372,63 @@ set_fpm_value() {
         exit 1
     fi
 }
+
+get_fpm_status() {
+    if [ ! -f "$FPM_BIN" ]; then
+        echo '{"error":"PHP 未安装"}'
+        exit 1
+    fi
+    file="$FPM_D" key="listen"
+    sock=$(grep -iE "^[[:space:]]*${key}[[:space:]]*=" "$file" 2>/dev/null \
+        | head -1 | cut -d= -f2- | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/[[:space:]]*[;#].*$//')
+    [ -n "$sock" ] || sock="/tmp/php-cgi-$VER.sock"
+
+    script=$(mktemp)
+    cat > "$script" << 'PHPEOF'
+<?php
+$sock = getenv("FPM_SOCK") ?: "/tmp/php-cgi-82.sock";
+$query = getenv("FPM_QS") ?: "json";
+$fp = stream_socket_client("unix://" . $sock, $errno, $errstr, 3);
+if (!$fp) { echo json_encode(["error" => "connect fail: $errstr"]); exit(1); }
+function pnl($n){ if($n < 128) return chr($n); return chr(($n>>24)&255).chr(($n>>16)&255).chr(($n>>8)&255).chr($n&255); }
+function wr($fp, $t, $id, $c){
+  $len = strlen($c); $pad = (8 - ($len % 8)) % 8;
+  $h = chr(1).chr($t).chr(($id>>8)&255).chr($id&255).chr(($len>>8)&255).chr($len&255).chr($pad).chr(0);
+  fwrite($fp, $h.$c.str_repeat("\0", $pad));
+}
+wr($fp, 1, 1, "\0\x01\0\0\0\0\0\0");
+$p = [
+  "GATEWAY_INTERFACE" => "CGI/1.1",
+  "REQUEST_METHOD"    => "GET",
+  "REQUEST_URI"       => "/phpfpm_82_status",
+  "SCRIPT_NAME"       => "/phpfpm_82_status",
+  "SCRIPT_FILENAME"   => "/phpfpm_82_status",
+  "QUERY_STRING"      => $query,
+  "SERVER_SOFTWARE"   => "alp",
+  "SERVER_PROTOCOL"   => "HTTP/1.1",
+  "SERVER_NAME"       => "127.0.0.1",
+  "SERVER_PORT"       => "80",
+];
+$c = "";
+foreach ($p as $k => $v) { $c .= pnl(strlen($k)).pnl(strlen($v)).$k.$v; }
+wr($fp, 4, 1, $c); wr($fp, 4, 1, ""); wr($fp, 5, 1, "");
+stream_socket_shutdown($fp, STREAM_SHUT_WR);
+stream_set_blocking($fp, false);
+$out = "";
+for ($i = 0; $i < 200; $i++) {
+  $r = fread($fp, 4096);
+  if ($r !== false && strlen($r) > 0) { $out .= $r; if (strpos($out, "\0") !== false) break; }
+  usleep(20000);
+}
+$pos = strpos($out, "\r\n\r\n");
+if ($pos !== false) $out = substr($out, $pos + 4);
+$end = strpos($out, "\0");
+if ($end !== false) $out = substr($out, 0, $end);
+echo $out;
+PHPEOF
+
+    FPM_SOCK="$sock" FPM_QS="json" "$PHP_BIN" "$script" 2>/dev/null
+    code=$?
+    rm -f "$script"
+    [ "$code" -eq 0 ] || { echo '{"error":"获取 PHP 状态失败"}'; exit 1; }
+}
