@@ -316,3 +316,73 @@ save_fpm_conf() {
         exit 1
     fi
 }
+
+update_kv() {
+    # update_kv <file> <key> <value>: 覆盖或追加 key = value
+    file="$1" key="$2" val="$3"
+    sed -i "s|^\([;#[:space:]]*${key}[[:space:]]*=\).*|\1 ${val}|I" "$file"
+    if ! grep -qiE "^[[:space:]]*${key}[[:space:]]*=" "$file"; then
+        echo "${key} = ${val}" >> "$file"
+    fi
+}
+
+getv() {
+    # 读取 file= 环境变量指定的 conf 中 key 的值(取首个非注释行, 去注释与首尾空格)
+    grep -iE "^[[:space:]]*${key}[[:space:]]*=" "$file" 2>/dev/null \
+        | head -1 \
+        | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/[[:space:]]*[;#].*$//' \
+        | cut -d= -f2- \
+        | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+get_php_value() {
+    [ -f "$INI_FILE" ] || { echo '{"error":"php.ini not found"}'; exit 1; }
+    file="$INI_FILE"         # getv 通过环境变量读
+    echo "{\"short_open_tag\":\"$(getv short_open_tag)\",\"max_execution_time\":\"$(getv max_execution_time)\",\"max_input_time\":\"$(getv max_input_time)\",\"memory_limit\":\"$(getv memory_limit)\",\"post_max_size\":\"$(getv post_max_size)\",\"file_uploads\":\"$(getv file_uploads)\",\"upload_max_filesize\":\"$(getv upload_max_filesize)\",\"max_file_uploads\":\"$(getv max_file_uploads)\",\"default_socket_timeout\":\"$(getv default_socket_timeout)\",\"error_reporting\":\"$(getv error_reporting)\",\"display_errors\":\"$(getv display_errors)\",\"cgi.fix_pathinfo\":\"$(getv cgi.fix_pathinfo)\",\"date.timezone\":\"$(getv date.timezone)\"}"
+}
+
+set_php_value() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    [ -f "$INI_FILE" ] && cp "$INI_FILE" "$INI_FILE.bak" || { echo '{"error":"ini missing"}'; exit 1; }
+    tmp=$(mktemp)
+    echo "$PLUGIN_ARGS" > "$tmp"
+    for key in short_open_tag max_execution_time max_input_time memory_limit post_max_size file_uploads upload_max_filesize max_file_uploads default_socket_timeout error_reporting display_errors cgi.fix_pathinfo date.timezone; do
+        val=$(jq -r ".$key // empty" "$tmp" 2>/dev/null)
+        [ -n "$val" ] && update_kv "$INI_FILE" "$key" "$val"
+    done
+    rm -f "$tmp" "$INI_FILE.bak"
+    echo '{"ok":true}'
+}
+
+get_fpm_value() {
+    [ -f "$FPM_D" ] || { echo '{"error":"www.conf not found"}'; exit 1; }
+    file="$FPM_D"
+    echo "{\"listen\":\"$(getv listen)\",\"allowed_clients\":\"$(getv listen.allowed_clients)\",\"pm\":\"$(getv pm)\",\"max_children\":\"$(getv pm.max_children)\",\"start_servers\":\"$(getv pm.start_servers)\",\"min_spare_servers\":\"$(getv pm.min_spare_servers)\",\"max_spare_servers\":\"$(getv pm.max_spare_servers)\"}"
+}
+
+set_fpm_value() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    [ -f "$FPM_D" ] && cp "$FPM_D" "$FPM_D.bak" || { echo '{"error":"conf missing"}'; exit 1; }
+    tmp=$(mktemp)
+    echo "$PLUGIN_ARGS" > "$tmp"
+    for key in listen allowed_clients pm max_children start_servers min_spare_servers max_spare_servers; do
+        val=$(jq -r ".$key // empty" "$tmp" 2>/dev/null)
+        [ -n "$val" ] && update_kv "$FPM_D" "$key" "$val"
+    done
+    rm -f "$tmp"
+    if "$FPM_BIN" -t --fpm-config "$FPM_CONF" >/dev/null 2>&1; then
+        rm -f "$FPM_D.bak"
+        echo '{"ok":true}'
+    else
+        cp "$FPM_D.bak" "$FPM_D"
+        rm -f "$FPM_D.bak"
+        echo '{"error":"fpm config test failed"}'
+        exit 1
+    fi
+}
