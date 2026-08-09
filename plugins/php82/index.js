@@ -566,18 +566,6 @@ const php82 = {
     // render(h, state) {
     //     return h('div', '自由渲染模式：整个插件界面由本函数产出')
     // },
-
-    style() {
-        return [
-            '.table{width:100%;border-collapse:collapse;margin-top:4px}',
-            '.table.kv{border:1px solid #2a2a2a}',
-            '.table.kv td{border:1px solid #2a2a2a}',
-            '.table th,.table td{padding:8px 14px;border-bottom:1px solid #2a2a2a;font-size:14px}',
-            '.table td{color:#aaa}',
-            '.table.kv td.tkey{width:180px;color:#ccc;background:#202020}',
-            '.table.kv td.tval{color:#eee}',
-        ].join(' ')
-    }
 }
 
 Plugin(php82).show()
