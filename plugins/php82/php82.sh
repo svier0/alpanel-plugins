@@ -179,8 +179,8 @@ status() {
         exit 1
     fi
     if [ -f "$PIDFILE" ]; then
-        read PID < "$PIDFILE"
-        if kill -0 "$PID" 2>/dev/null; then
+        PID=$(cat "$PIDFILE" 2>/dev/null)
+        if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
             echo "running"
             return 0
         fi
@@ -234,8 +234,8 @@ reload() {
         exit 1
     fi
     if [ -f "$PIDFILE" ]; then
-        read PID < "$PIDFILE"
-        if kill -0 "$PID" 2>/dev/null; then
+        PID=$(cat "$PIDFILE" 2>/dev/null)
+        if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
             kill -USR2 "$PID" 2>/dev/null
             echo "PHP $VER 已重载"
             return 0
