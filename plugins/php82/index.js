@@ -188,31 +188,51 @@ const php82 = {
         // —— 禁用函数 ——
         disable: {
             onLoad() {},
-            render() { return '开发中' },
+            render(h, state) {
+                return h('div', [
+                    h('p', { class: 'tip' }, '功能开发中'),
+                ])
+            },
         },
 
         // —— 安装扩展 ——
         ext: {
             onLoad() {},
-            render() { return '开发中' },
+            render(h, state) {
+                return h('div', [
+                    h('p', { class: 'tip' }, '功能开发中'),
+                ])
+            },
         },
 
         // —— 配置调整 ——
         adjust: {
             onLoad() {},
-            render() { return '开发中' },
+            render(h, state) {
+                return h('div', [
+                    h('p', { class: 'tip' }, '功能开发中'),
+                ])
+            },
         },
 
         // —— 性能调整 ——
         performance: {
             onLoad() {},
-            render() { return '开发中' },
+            render(h, state) {
+                return h('div', [
+                    h('p', { class: 'tip' }, '功能开发中'),
+                ])
+            },
         },
 
         // —— Session配置 ——
         session: {
             onLoad() {},
-            render() { return '开发中' },
+            render(h, state) {
+                return h('div', [
+                    h('p', { class: 'tip' }, '功能开发中'),
+                ])
+            },
         },
 
         // —— 配置文件 ——
@@ -279,6 +299,11 @@ const php82 = {
             },
         },
     },
+
+    // layout !== 'none' 时将被忽略（仅 layout == 'none' 使用 setup + render）
+    // render(h, state) {
+    //     return h('div', '自由渲染模式：整个插件界面由本函数产出')
+    // },
 }
 
 Plugin(php82).show()
