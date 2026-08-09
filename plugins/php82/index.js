@@ -67,6 +67,78 @@ const php82 = {
             }
         }
 
+        // —— 配置调整页 ——
+        const adjust = reactive({
+            short_open_tag: '关闭',
+            max_execution_time: '300',
+            max_input_time: '60',
+            memory_limit: '128M',
+            post_max_size: '50M',
+            file_uploads: '开启',
+            upload_max_filesize: '50M',
+            max_file_uploads: '20',
+            default_socket_timeout: '60',
+            error_reporting: 'E_ALL & ~E_NOTICE',
+            display_errors: '关闭',
+            'cgi.fix_pathinfo': '开启',
+            'date.timezone': 'PRC',
+        })
+        const adjustSaving = ref(false)
+
+        async function loadAdjust() {
+            try {
+                var r = await ctx.api('get_php_value')
+                if (r && r.stdout) {
+                    var d = JSON.parse(r.stdout)
+                    adjust.short_open_tag = d.short_open_tag === 'On' ? '开启' : '关闭'
+                    adjust.max_execution_time = d.max_execution_time || '300'
+                    adjust.max_input_time = d.max_input_time || '60'
+                    adjust.memory_limit = d.memory_limit || '128M'
+                    adjust.post_max_size = d.post_max_size || '50M'
+                    adjust.file_uploads = d.file_uploads === 'On' ? '开启' : '关闭'
+                    adjust.upload_max_filesize = d.upload_max_filesize || '50M'
+                    adjust.max_file_uploads = d.max_file_uploads || '20'
+                    adjust.default_socket_timeout = d.default_socket_timeout || '60'
+                    adjust.error_reporting = d.error_reporting || 'E_ALL & ~E_NOTICE'
+                    adjust.display_errors = d.display_errors === 'On' ? '开启' : '关闭'
+                    adjust['cgi.fix_pathinfo'] = d['cgi.fix_pathinfo'] === 'On' ? '开启' : '关闭'
+                    adjust['date.timezone'] = d['date.timezone'] || 'PRC'
+                }
+            } catch (e) {}
+        }
+
+        async function saveAdjust() {
+            adjustSaving.value = true
+            try {
+                var data = {
+                    short_open_tag: adjust.short_open_tag === '开启' ? 'On' : 'Off',
+                    max_execution_time: adjust.max_execution_time,
+                    max_input_time: adjust.max_input_time,
+                    memory_limit: adjust.memory_limit,
+                    post_max_size: adjust.post_max_size,
+                    file_uploads: adjust.file_uploads === '开启' ? 'On' : 'Off',
+                    upload_max_filesize: adjust.upload_max_filesize,
+                    max_file_uploads: adjust.max_file_uploads,
+                    default_socket_timeout: adjust.default_socket_timeout,
+                    error_reporting: adjust.error_reporting,
+                    display_errors: adjust.display_errors === '开启' ? 'On' : 'Off',
+                    'cgi.fix_pathinfo': adjust['cgi.fix_pathinfo'] === '开启' ? 'On' : 'Off',
+                    'date.timezone': adjust['date.timezone'],
+                }
+                var r = await ctx.api('set_php_value', { body: JSON.stringify(data) })
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                if (d.ok) {
+                    toast('已保存', 'ok')
+                } else {
+                    toast(d.error || '保存失败', 'err')
+                }
+            } catch (e) {
+                toast('保存失败 ' + (e.message || ''), 'err')
+            } finally {
+                adjustSaving.value = false
+            }
+        }
+
         // —— 配置文件页 ——
         async function loadPhpIni() {
             try {
@@ -145,10 +217,12 @@ const php82 = {
 
         return {
             Editor, running, version, actionLoading,
+            adjust, adjustSaving,
             iniContent, iniSaving,
             fpmContent, fpmSaving,
             logContent, slowlogContent,
             checkStatus, getVersion, control,
+            loadAdjust, saveAdjust,
             loadPhpIni, savePhpIni,
             loadFpmConf, saveFpmConf,
             loadLog, loadSlowlog,
@@ -207,10 +281,45 @@ const php82 = {
 
         // —— 配置调整 ——
         adjust: {
-            onLoad() {},
+            onLoad(ctx, state) { return state.loadAdjust() },
             render(h, state) {
+                var a = state.adjust
+                const toggle = function(key) {
+                    return h('select', { class: 'slt', value: a[key],
+                        onChange: function(e) { a[key] = e.target.value } },
+                        [h('option', { value: '开启' }, '开启'), h('option', { value: '关闭' }, '关闭')])
+                }
+                const field = function(label, tip, key) {
+                    return [
+                        h('label', label),
+                        h('input', {
+                            value: a[key] || '',
+                            onInput: function(e) { a[key] = e.target.value },
+                        }),
+                        h('span', { class: 'tip' }, tip),
+                    ]
+                }
                 return h('div', [
-                    h('p', { class: 'tip' }, '功能开发中'),
+                    h('div', { class: 'form-grid' }, [
+                        h('label', 'short_open_tag'), toggle('short_open_tag'), h('span', { class: 'tip' }, '短标签支持'),
+                        ...field('max_execution_time', '最大脚本运行时间(秒)', 'max_execution_time'),
+                        ...field('max_input_time', '最大输入时间(秒)', 'max_input_time'),
+                        ...field('memory_limit', '脚本内存限制', 'memory_limit'),
+                        ...field('post_max_size', 'POST数据最大尺寸', 'post_max_size'),
+                        h('label', 'file_uploads'), toggle('file_uploads'), h('span', { class: 'tip' }, '是否允许上传文件'),
+                        ...field('upload_max_filesize', '允许上传文件的最大尺寸', 'upload_max_filesize'),
+                        ...field('max_file_uploads', '允许同时上传文件的最大数量', 'max_file_uploads'),
+                        ...field('default_socket_timeout', 'Socket超时时间(秒)', 'default_socket_timeout'),
+                        ...field('error_reporting', '错误级别', 'error_reporting'),
+                        h('label', 'display_errors'), toggle('display_errors'), h('span', { class: 'tip' }, '是否输出详细错误信息'),
+                        h('label', 'cgi.fix_pathinfo'), toggle('cgi.fix_pathinfo'), h('span', { class: 'tip' }, '是否开启pathinfo'),
+                        ...field('date.timezone', '时区', 'date.timezone'),
+                    ]),
+                    h('div', { class: 'row' }, [
+                        h('button', { class: 'btn', onClick: state.saveAdjust },
+                            state.adjustSaving.value ? '保存中...' : '保存'),
+                        h('button', { class: 'btn', onClick: function() { state.control('reload') } }, '刷新'),
+                    ]),
                 ])
             },
         },
