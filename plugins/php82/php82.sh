@@ -258,3 +258,61 @@ reload() {
     echo "PHP $VER 未运行" >&2
     exit 1
 }
+
+INI_FILE="$CONF_DIR/php.ini"
+FPM_D="$CONF_DIR/php-fpm.d/www.conf"
+
+get_php_ini() {
+    if [ ! -f "$CONF_DIR/php.ini" ]; then
+        echo '{"error":"php.ini not found"}'
+        exit 1
+    fi
+    echo "{\"content\": $(cat "$INI_FILE" | jq -Rs .)}"
+}
+
+save_php_ini() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    content=$(echo "$PLUGIN_ARGS" | jq -r '.content // empty')
+    if [ -z "$content" ]; then
+        echo '{"error":"bad content"}'
+        exit 1
+    fi
+    [ -f "$INI_FILE" ] && cp "$INI_FILE" "$INI_FILE.bak" || { echo '{"error":"ini missing"}'; exit 1; }
+    printf '%s\n' "$content" > "$INI_FILE"
+    echo '{"ok":true}'
+}
+
+get_fpm_conf() {
+    if [ ! -f "$FPM_D" ]; then
+        echo '{"error":"www.conf not found"}'
+        exit 1
+    fi
+    echo "{\"content\": $(cat "$FPM_D" | jq -Rs .)}"
+}
+
+save_fpm_conf() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    content=$(echo "$PLUGIN_ARGS" | jq -r '.content // empty')
+    if [ -z "$content" ]; then
+        echo '{"error":"bad content"}'
+        exit 1
+    fi
+    [ -f "$FPM_D" ] && cp "$FPM_D" "$FPM_D.bak" || { echo '{"error":"conf missing"}'; exit 1; }
+    printf '%s\n' "$content" > "$FPM_D"
+    if "$FPM_BIN" -t --fpm-config "$FPM_CONF" >/dev/null 2>&1; then
+        rm -f "$FPM_D.bak"
+        reload >/dev/null 2>&1 || true
+        echo '{"ok":true}'
+    else
+        cp "$FPM_D.bak" "$FPM_D"
+        rm -f "$FPM_D.bak"
+        echo '{"error":"fpm config test failed"}'
+        exit 1
+    fi
+}
