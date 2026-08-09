@@ -1,6 +1,5 @@
 const redis = {
   plugin_name: 'redis',
-  width: "600",
 
   setup(ctx) {
     const { ref, reactive } = ctx
