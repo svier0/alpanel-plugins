@@ -6,7 +6,8 @@ PHP_DIR="/www/server/php/$VER"
 BIN_DIR="$PHP_DIR/bin"
 LIB_DIR="$PHP_DIR/lib"
 CONF_DIR="$PHP_DIR/conf"
-RUN_DIR="$PHP_DIR/run"
+RUN_DIR="$PHP_DIR/var/run"
+VARLOG_DIR="$PHP_DIR/var/log"
 LOG_DIR="/www/wwwlogs"
 PHP_BIN="$BIN_DIR/php$VER"
 FPM_BIN="$BIN_DIR/php-fpm$VER"
@@ -87,39 +88,25 @@ install() {
         echo "extension_dir = $LIB_DIR/php$VER/modules" >> "$CONF_DIR/php.ini"
     fi
 
-    cat > "$FPM_CONF" << 'EOF'
-[global]
-pid = VERRUN/php-fpm.pid
-error_log = /www/wwwlogs/php-fpmVER.log
-include=/www/server/php/VER/conf/php-fpm.d/*.conf
-EOF
-    sed -i "s|VERRUN|$RUN_DIR|g; s|VER|$VER|g" "$FPM_CONF"
+    ghproxy_val=$(grep '^GHPROXY=' /www/server/panel/.env 2>/dev/null | cut -d= -f2-)
+    GH_PROXY=""
+    [ -n "$ghproxy_val" ] && [ "$ghproxy_val" != "false" ] && GH_PROXY="$ghproxy_val"
+    PHP_RAW="${GH_PROXY}https://raw.githubusercontent.com/svier0/alpanel-plugins/master/plugins/php82"
 
-    mkdir -p "$CONF_DIR/php-fpm.d"
-    cat > "$CONF_DIR/php-fpm.d/www.conf" << 'EOF'
-[www]
-user = www
-group = www
-listen = /www/server/php/VER/run/php-fpmVER.sock
-listen.owner = www
-listen.group = www
-pm = dynamic
-pm.max_children = 5
-pm.start_servers = 2
-pm.min_spare_servers = 1
-pm.max_spare_servers = 3
-EOF
-    sed -i "s|VER|$VER|g" "$CONF_DIR/php-fpm.d/www.conf"
+    mkdir -p "$RUN_DIR" "$VARLOG_DIR"
+    wget -q --timeout=10 "$PHP_RAW/conf/php-fpm.conf" -O "$FPM_CONF" \
+        || { echo "错误: 下载 php-fpm.conf 失败" >&2; rm -rf "$dl_dir" "$ext_dir"; exit 1; }
+    sed -i "s|__VER__|$VER|g" "$FPM_CONF"
 
     cat > "/etc/init.d/php$VER" << 'PHINIT'
 #!/bin/sh
 
 PHP_FPM_BIN="/www/server/php/__VER__/bin/php-fpm__VER__"
 PHP_FPM_CONF="/www/server/php/__VER__/conf/php-fpm.conf"
-PIDFILE="/www/server/php/__VER__/run/php-fpm.pid"
+PIDFILE="/www/server/php/__VER__/var/run/php-fpm.pid"
 
 start() {
-    mkdir -p /www/server/php/__VER__/run
+    mkdir -p /www/server/php/__VER__/var/run /www/server/php/__VER__/var/log
     export LD_LIBRARY_PATH=/www/server/php/__VER__/lib
     start-stop-daemon --start --background --make-pidfile \
         --pidfile "$PIDFILE" \
@@ -260,7 +247,7 @@ reload() {
 }
 
 INI_FILE="$CONF_DIR/php.ini"
-FPM_D="$CONF_DIR/php-fpm.d/www.conf"
+FPM_D="$CONF_DIR/php-fpm.conf"
 
 get_php_ini() {
     if [ ! -f "$CONF_DIR/php.ini" ]; then
