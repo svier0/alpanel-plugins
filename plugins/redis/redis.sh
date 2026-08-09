@@ -216,11 +216,153 @@ reload() {
     if [ -f "$PIDFILE" ]; then
         read PID < "$PIDFILE"
         if kill -0 "$PID" 2>/dev/null; then
-            kill -HUP "$PID" 2>/dev/null
+            stop
+            sleep 1
+            start
             echo "Redis 已重载"
             return 0
         fi
     fi
     echo "Redis 未运行" >&2
     exit 1
+}
+
+get_redis_status() {
+    if [ ! -f "$REDIS_BIN" ]; then
+        echo '{"error":"not installed"}'
+        exit 1
+    fi
+    if [ -f "$PIDFILE" ]; then
+        read PID < "$PIDFILE"
+        if ! kill -0 "$PID" 2>/dev/null; then
+            echo '{"error":"not running"}'
+            exit 1
+        fi
+    else
+        echo '{"error":"not running"}'
+        exit 1
+    fi
+
+    export LD_LIBRARY_PATH=/www/server/redis/lib
+    rcli="/www/server/redis/bin/redis-cli"
+    pass=$(grep -iE "^\s*requirepass\s+" "$REDIS_CONF" 2>/dev/null | head -1 | awk '{print $2}')
+    if [ -n "$pass" ]; then
+        info=$("$rcli" -a "$pass" --no-auth-warning INFO 2>/dev/null || true)
+    else
+        info=$("$rcli" INFO 2>/dev/null || true)
+    fi
+
+    gf() {
+        echo "$info" | sed -n "s/^${1}:\(.*\)$/\1/p" | head -1
+    }
+
+    uptime_in_days=$(gf uptime_in_days)
+    tcp_port=$(gf tcp_port)
+    connected_clients=$(gf connected_clients)
+    used_memory_rss=$(gf used_memory_rss)
+    used_memory=$(gf used_memory)
+    mem_fragmentation_ratio=$(gf mem_fragmentation_ratio)
+    total_connections_received=$(gf total_connections_received)
+    total_commands_processed=$(gf total_commands_processed)
+    instantaneous_ops_per_sec=$(gf instantaneous_ops_per_sec)
+    keyspace_hits=$(gf keyspace_hits)
+    keyspace_misses=$(gf keyspace_misses)
+    latest_fork_usec=$(gf latest_fork_usec)
+
+    [ -z "$uptime_in_days" ] && uptime_in_days=0
+    [ -z "$tcp_port" ] && tcp_port=0
+    [ -z "$connected_clients" ] && connected_clients=0
+    [ -z "$used_memory_rss" ] && used_memory_rss=0
+    [ -z "$used_memory" ] && used_memory=0
+    [ -z "$mem_fragmentation_ratio" ] && mem_fragmentation_ratio=0
+    [ -z "$total_connections_received" ] && total_connections_received=0
+    [ -z "$total_commands_processed" ] && total_commands_processed=0
+    [ -z "$instantaneous_ops_per_sec" ] && instantaneous_ops_per_sec=0
+    [ -z "$keyspace_hits" ] && keyspace_hits=0
+    [ -z "$keyspace_misses" ] && keyspace_misses=0
+    [ -z "$latest_fork_usec" ] && latest_fork_usec=0
+
+    hits_total=$(( keyspace_hits + keyspace_misses ))
+    if [ "$hits_total" -gt 0 ]; then
+        hit=$(awk -v h="$keyspace_hits" -v t="$hits_total" 'BEGIN{ printf "%.2f", h*100/t }')
+        hit="${hit}%"
+    else
+        hit="0%"
+    fi
+
+    fmt_size() {
+        b=$1
+        if [ "$b" -ge 1073741824 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1073741824}") GB"
+        elif [ "$b" -ge 1048576 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1048576}") MB"
+        elif [ "$b" -ge 1024 ]; then echo "$(awk "BEGIN{printf \"%.2f\", $b/1024}") KB"
+        else echo "${b} B"; fi
+    }
+
+    echo "{\"uptime_in_days\":\"$uptime_in_days\",\"tcp_port\":\"$tcp_port\",\"connected_clients\":\"$connected_clients\",\"used_memory_rss\":\"$(fmt_size "$used_memory_rss")\",\"used_memory\":\"$(fmt_size "$used_memory")\",\"mem_fragmentation_ratio\":\"$mem_fragmentation_ratio\",\"total_connections_received\":\"$total_connections_received\",\"total_commands_processed\":\"$total_commands_processed\",\"instantaneous_ops_per_sec\":\"$instantaneous_ops_per_sec\",\"keyspace_hits\":\"$keyspace_hits\",\"keyspace_misses\":\"$keyspace_misses\",\"hit\":\"$hit\",\"latest_fork_usec\":\"$latest_fork_usec\"}"
+}
+
+get_redis_value() {
+    conf="$REDIS_CONF"
+    getv() {
+        val=$(grep -iE "^\s*${1}\s+" "$conf" 2>/dev/null | head -1 | awk '{print $2}')
+        [ -n "$val" ] && echo "$val" || echo "${2}"
+    }
+    strip() {
+        echo "$1" | sed 's/\([MmGgKk][Bb]\?\)$//'
+    }
+
+    echo "{\"bind\":\"$(getv bind 127.0.0.1)\",\"port\":\"$(getv port 6379)\",\"timeout\":\"$(getv timeout 0)\",\"maxclients\":\"$(getv maxclients 10000)\",\"databases\":\"$(getv databases 4)\",\"requirepass\":\"$(getv requirepass "")\",\"maxmemory\":\"$(strip "$(getv maxmemory 0)")\"}"
+}
+
+set_redis_value() {
+    tmp=""
+    if [ -n "${PLUGIN_ARGS:-}" ]; then
+        tmp=$(mktemp)
+        echo "$PLUGIN_ARGS" > "$tmp"
+    fi
+    if [ -z "$tmp" ] && [ -f "/tmp/redis_perf.json" ]; then
+        tmp="/tmp/redis_perf.json"
+    fi
+    if [ -z "$tmp" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    conf="$REDIS_CONF"
+    [ -f "$conf" ] && cp "$conf" "$conf.bak" || { echo '{"error":"conf missing"}'; exit 1; }
+
+    setv() {
+        key="$1"; unit="$2"
+        val=$(jq -r ".${key} // empty" "$tmp" 2>/dev/null)
+        if [ -n "$val" ]; then
+            val="${val}${unit}"
+            if grep -qiE "^\s*${key}\s+" "$conf"; then
+                sed -i "s/^\(\s*${key}\s\+\).*/\1${val}/I" "$conf"
+            else
+                echo "${key} ${val}" >> "$conf"
+            fi
+        fi
+    }
+
+    setv bind ""
+    setv port ""
+    setv timeout ""
+    setv maxclients ""
+    setv databases ""
+    setv maxmemory mb
+
+    pass=$(jq -r '.requirepass // empty' "$tmp" 2>/dev/null)
+    if [ -n "$pass" ]; then
+        if grep -qiE "^\s*requirepass\s+" "$conf"; then
+            sed -i "s/^\(\s*requirepass\s\+\).*/\1${pass}/I" "$conf"
+        else
+            echo "requirepass ${pass}" >> "$conf"
+        fi
+    else
+        sed -i "/^\s*requirepass\s/d" "$conf"
+    fi
+
+    rm -f "$tmp"
+    restart >/dev/null 2>&1
+    rm -f "$conf.bak"
+    echo '{"ok":true}'
 }
