@@ -269,6 +269,42 @@ const php82 = {
             }
         }
 
+        // —— 负载状态页 ——
+        const statusFields = [
+            { key: 'pool', label: '应用池' },
+            { key: 'process manager', label: '进程管理方式' },
+            { key: 'start time', label: '启动日期' },
+            { key: 'accepted conn', label: '请求数' },
+            { key: 'listen queue', label: '请求队列' },
+            { key: 'max listen queue', label: '最大等待队列' },
+            { key: 'idle processes', label: '空闲进程数' },
+            { key: 'active processes', label: '活跃进程数' },
+            { key: 'total processes', label: '总进程数' },
+            { key: 'max active processes', label: '最大活跃进程数' },
+            { key: 'max children reached', label: '到达进程上限次数' },
+            { key: 'slow requests', label: '慢请求数量' },
+        ]
+        const fpmStatus = reactive({})
+        const statusError = ref('')
+        const extStatus = ref({})
+
+        async function loadStatus() {
+            statusError.value = ''
+            try {
+                var r = await ctx.api('get_fpm_status')
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                if (d && d.error) {
+                    statusError.value = d.error
+                    return
+                }
+                Object.keys(fpmStatus).forEach(function(k) { delete fpmStatus[k] })
+                Object.assign(fpmStatus, d)
+                extStatus.value = (d && d.requests) ? d.requests : {}
+            } catch (e) {
+                statusError.value = '获取状态失败：' + (e.message || '')
+            }
+        }
+
         return {
             Editor, running, version, actionLoading,
             adjust, adjustSaving,
@@ -276,12 +312,13 @@ const php82 = {
             iniContent, iniSaving,
             fpmContent, fpmSaving,
             logContent, slowlogContent,
+            statusFields, fpmStatus, statusError, extStatus,
             checkStatus, getVersion, control,
             loadAdjust, saveAdjust,
             loadPerf, savePerf,
             loadPhpIni, savePhpIni,
             loadFpmConf, saveFpmConf,
-            loadLog, loadSlowlog,
+            loadLog, loadSlowlog, loadStatus,
         }
     },
 
@@ -479,8 +516,35 @@ const php82 = {
 
         // —— 负载状态 ——
         load: {
-            onLoad() {},
-            render() { return '开发中' },
+            onLoad(ctx, state) { return state.loadStatus() },
+            render(h, state) {
+                var rows = state.statusFields.map(function(f) {
+                    var v = state.fpmStatus[f.key]
+                    if (f.key === 'start time' && typeof v === 'number') {
+                        var d = new Date(v * 1000)
+                        var pad = function(n) { return (n < 10 ? '0' : '') + n }
+                        v = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+                            + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())
+                    }
+                    return h('tr', [
+                        h('td', { class: 'tkey' }, f.label),
+                        h('td', { class: 'tval' }, (v === undefined || v === null) ? '-' : String(v)),
+                    ])
+                })
+                var content
+                if (state.statusError.value) {
+                    content = h('p', { class: 'tip' }, state.statusError.value)
+                } else {
+                    content = h('table', { class: 'table kv' },
+                        h('tbody', rows))
+                }
+                return h('div', [
+                    h('div', { class: 'row' }, [
+                        h('button', { class: 'btn', onClick: state.loadStatus }, '刷新'),
+                    ]),
+                    content,
+                ])
+            },
         },
 
         // —— 日志 ——
@@ -508,6 +572,18 @@ const php82 = {
     // render(h, state) {
     //     return h('div', '自由渲染模式：整个插件界面由本函数产出')
     // },
+
+    style() {
+        return [
+            '.table{width:100%;border-collapse:collapse;margin-top:4px}',
+            '.table.kv{border:1px solid #2a2a2a}',
+            '.table.kv td{border:1px solid #2a2a2a}',
+            '.table th,.table td{padding:8px 14px;border-bottom:1px solid #2a2a2a;font-size:14px}',
+            '.table td{color:#aaa}',
+            '.table.kv td.tkey{width:180px;color:#ccc;background:#202020}',
+            '.table.kv td.tval{color:#eee}',
+        ].join(' ')
+    }
 }
 
 Plugin(php82).show()
