@@ -37,6 +37,50 @@ const php82 = {
         const logContent = ref('')
         const slowlogContent = ref('')
 
+        // —— Session 配置 ——
+        const sessionCfg = reactive({ handler: 'files', host: '', port: '', password: '' })
+        const sessionSaving = ref(false)
+        const sessionFiles = reactive({ total: '0', cleanable: '0' })
+        async function loadSession() {
+            try {
+                var r = await ctx.api('get_session')
+                if (r && r.stdout) {
+                    var d = JSON.parse(r.stdout)
+                    Object.assign(sessionCfg, { handler: d.handler || 'files', host: d.host || '', port: d.port || '', password: d.password || '' })
+                }
+            } catch (e) {}
+            try {
+                var r2 = await ctx.api('get_session_files')
+                if (r2 && r2.stdout) {
+                    var d2 = JSON.parse(r2.stdout)
+                    sessionFiles.total = d2.total || '0'
+                    sessionFiles.cleanable = d2.cleanable || '0'
+                }
+            } catch (e) {}
+        }
+        async function saveSession() {
+            sessionSaving.value = true
+            try {
+                var r = await ctx.api('set_session', { body: JSON.stringify(sessionCfg) })
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                toast(d.ok ? '保存成功' : (d.error || '保存失败'), d.ok ? 'ok' : 'err')
+            } catch (e) {
+                toast('保存失败 ' + (e.message || ''), 'err')
+            } finally {
+                sessionSaving.value = false
+            }
+        }
+        async function cleanSession() {
+            try {
+                var r = await ctx.api('clean_session_files')
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                toast(d.ok ? '清理完成' : (d.error || '清理失败'), d.ok ? 'ok' : 'err')
+            } catch (e) {
+                toast('清理失败 ' + (e.message || ''), 'err')
+            }
+            loadSession()
+        }
+
         // —— 禁用函数 ——
         const disableFuncs = ref([])
         async function loadDisableFuncs() {
@@ -335,6 +379,7 @@ const php82 = {
             fpmContent, fpmSaving,
             logContent, slowlogContent,
             disableFuncs, loadDisableFuncs, delDisableFunc,
+            sessionCfg, sessionSaving, sessionFiles, loadSession, saveSession, cleanSession,
             statusFields, fpmStatus, statusError, extStatus,
             checkStatus, getVersion, control,
             loadAdjust, saveAdjust,
@@ -501,10 +546,56 @@ const php82 = {
 
         // —— Session配置 ——
         session: {
-            onLoad() {},
+            onLoad(ctx, state) { return state.loadSession() },
             render(h, state) {
+                var s = state.sessionCfg
                 return h('div', [
-                    h('p', { class: 'tip' }, '功能开发中'),
+                    h('div', { class: 'form-grid' }, [
+                        h('label', '存储模式'),
+                        h('select', { class: 'slt', value: s.handler,
+                            onChange: function(e) { s.handler = e.target.value } },
+                            [
+                                h('option', { value: 'files' }, 'files'),
+                                h('option', { value: 'redis' }, 'redis'),
+                                h('option', { value: 'memcache' }, 'Memcache'),
+                                h('option', { value: 'memcached' }, 'Memcached'),
+                            ]),
+                        h('span', { class: 'tip' }, 'Session存储方式'),
+                        h('label', '链接地址'),
+                        h('input', {
+                            value: s.host,
+                            onInput: function(e) { s.host = e.target.value },
+                        }),
+                        h('span', { class: 'tip' }, '支持域名和IP地址'),
+                        h('label', '端口'),
+                        h('input', {
+                            value: s.port,
+                            onInput: function(e) { s.port = e.target.value },
+                        }),
+                        h('span', { class: 'tip' }, ''),
+                        h('label', '密码'),
+                        h('input', {
+                            value: s.password,
+                            placeholder: '无密码时留空',
+                            onInput: function(e) { s.password = e.target.value },
+                        }),
+                        h('span', { class: 'tip' }, ''),
+                    ]),
+                    h('div', { class: 'row' }, [
+                        h('button', { class: 'btn', onClick: state.saveSession },
+                            state.sessionSaving.value ? '保存中...' : '保存'),
+                    ]),
+                    h('p', { class: 'tip' }, '切换Session模式会使在线的用户会话丢失，请在流量小的时候切换'),
+                    h('div', { class: 'session-clear' }, [
+                        h('p', { class: 'sc-title' }, '清理Session文件'),
+                        h('table', { class: 'table' }, [
+                            h('tbody', [
+                                h('tr', [h('td', '总Session文件数量'), h('td', state.sessionFiles.total)]),
+                                h('tr', [h('td', '可清理的Session文件数量'), h('td', state.sessionFiles.cleanable)]),
+                            ]),
+                        ]),
+                        h('button', { class: 'btn', onClick: state.cleanSession }, '清理session文件'),
+                    ]),
                 ])
             },
         },

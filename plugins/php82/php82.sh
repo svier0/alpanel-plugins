@@ -422,6 +422,72 @@ del_disable_func() {
     echo '{"ok":true}'
 }
 
+get_session() {
+    [ -f "$INI_FILE" ] || { echo '{"error":"php.ini not found"}'; exit 1; }
+    file="$INI_FILE" key="session.save_handler"
+    handler=$(getv)
+    file="$INI_FILE" key="session.save_path"
+    path=$(getv)
+    host="" port="" password=""
+    case "$path" in
+        tcp://*|redis://*)
+            rest=${path#*://}
+            host=${rest%%:*}
+            rest2=${rest#*:}
+            port=$(echo "$rest2" | cut -d'?' -f1)
+            auth=$(echo "$rest2" | sed -n 's/.*?auth=\([^&]*\).*/\1/p')
+            [ -n "$auth" ] && password="$auth"
+            ;;
+        *)
+            rest=${path#*://}
+            [ "$rest" != "$path" ] && host=${rest%%:*}
+            ;;
+    esac
+    echo "{\"handler\":\"$handler\",\"host\":\"$host\",\"port\":\"$port\",\"password\":\"$password\"}"
+}
+
+set_session() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    handler=$(echo "$PLUGIN_ARGS" | jq -r '.handler // empty')
+    host=$(echo "$PLUGIN_ARGS" | jq -r '.host // empty')
+    port=$(echo "$PLUGIN_ARGS" | jq -r '.port // empty')
+    password=$(echo "$PLUGIN_ARGS" | jq -r '.password // empty')
+    [ -n "$handler" ] || { echo '{"error":"no handler"}'; exit 1; }
+    [ -f "$INI_FILE" ] && cp "$INI_FILE" "$INI_FILE.bak" || { echo '{"error":"ini missing"}'; exit 1; }
+    update_kv "$INI_FILE" "session.save_handler" "$handler"
+    case "$handler" in
+        files|Files)
+            update_kv "$INI_FILE" "session.save_path" ""
+            ;;
+        redis|Redis)
+            p="tcp://$host:$port"
+            [ -n "$password" ] && p="$p?auth=$password"
+            update_kv "$INI_FILE" "session.save_path" "$p"
+            ;;
+        memcache|Memcache|memcached|Memcached)
+            update_kv "$INI_FILE" "session.save_path" "tcp://$host:$port"
+            ;;
+    esac
+    rm -f "$INI_FILE.bak"
+    echo '{"ok":true}'
+}
+
+get_session_files() {
+    dir="${SESSION_DIR:-/tmp}"
+    total=$(ls "$dir"/sess_* 2>/dev/null | wc -l)
+    cleanable=$(find "$dir" -maxdepth 1 -name 'sess_*' -mmin +30 2>/dev/null | wc -l)
+    echo "{\"total\":\"$total\",\"cleanable\":\"$cleanable\"}"
+}
+
+clean_session_files() {
+    dir="${SESSION_DIR:-/tmp}"
+    rm -f "$dir"/sess_* 2>/dev/null
+    echo '{"ok":true}'
+}
+
 get_fpm_value() {
     [ -f "$FPM_D" ] || { echo '{"error":"www.conf not found"}'; exit 1; }
     file="$FPM_D"
