@@ -439,9 +439,9 @@ const php82 = {
                         h('select', { class: 'slt', value: p.pm,
                             onChange: function(e) { p.pm = e.target.value } },
                             [
-                                h('option', { value: '按需模式' }, '按需模式'),
                                 h('option', { value: '静态模式' }, '静态模式'),
                                 h('option', { value: '动态模式' }, '动态模式'),
+                                h('option', { value: '按需模式' }, '按需模式'),
                             ]),
                         h('span', { class: 'tip' }, 'PHP-FPM运行模式'),
                         ...field('max_children', '允许创建的最大子进程数', 'max_children'),
