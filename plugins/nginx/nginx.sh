@@ -34,6 +34,9 @@ install() {
     nginx_dir="/www/server/nginx"
     conf_dir="$nginx_dir/conf"
     run_dir="$nginx_dir/run"
+    tmp_dir="$nginx_dir/tmp"
+    proxy_temp_dir="$nginx_dir/proxy_temp_dir"
+    proxy_cache_dir="$nginx_dir/proxy_cache_dir"
     log_dir="/www/wwwlogs"
     vhost_dir="/www/server/panel/vhost/nginx"
 
@@ -42,7 +45,7 @@ install() {
     [ -n "$ghproxy_val" ] && [ "$ghproxy_val" != "false" ] && GH_PROXY="$ghproxy_val"
     NGINX_RAW="${GH_PROXY}https://raw.githubusercontent.com/svier0/alpanel-plugins/master/plugins/nginx"
 
-    mkdir -p "$nginx_dir" "$conf_dir" "$run_dir" "$vhost_dir" "$log_dir"
+    mkdir -p "$nginx_dir" "$conf_dir" "$run_dir" "$tmp_dir" "$proxy_temp_dir" "$proxy_cache_dir" "$vhost_dir" "$log_dir"
 
     dl_dir=$(mktemp -d)
     ext_dir=$(mktemp -d)
@@ -81,6 +84,11 @@ install() {
     wget -q --timeout=10 "$NGINX_RAW/conf/nginx.conf" -O "$conf_dir/nginx.conf" \
         || { echo "错误: 下载 nginx.conf 失败" >&2; rm -rf "$dl_dir" "$ext_dir"; exit 1; }
 
+    for tpl in proxy.conf php-00.conf php-74.conf php-75.conf php-80.conf php-81.conf php-82.conf php-83.conf php-84.conf php-85.conf; do
+        wget -q --timeout=10 "$NGINX_RAW/conf/$tpl" -O "$conf_dir/$tpl" \
+            || { echo "错误: 下载 $tpl 失败" >&2; rm -rf "$dl_dir" "$ext_dir"; exit 1; }
+    done
+
     cat > /etc/init.d/nginx << 'NGINXINIT'
 #!/bin/sh
 
@@ -91,6 +99,8 @@ ERRLOG="/www/wwwlogs/nginx_error.log"
 
 start() {
     mkdir -p /www/server/nginx/run
+    mkdir -p /var/lib/nginx/tmp/client_body /var/lib/nginx/tmp/proxy /var/lib/nginx/tmp/fastcgi /var/lib/nginx/tmp/uwsgi /var/lib/nginx/tmp/scgi
+    mkdir -p /www/server/nginx/tmp /www/server/nginx/proxy_temp_dir /www/server/nginx/proxy_cache_dir
     export LD_LIBRARY_PATH=/www/server/nginx/lib
     start-stop-daemon --start --background --make-pidfile \
         --pidfile "$PIDFILE" \
@@ -191,6 +201,8 @@ start() {
         return 0
     fi
     mkdir -p "$(dirname "$PIDFILE")"
+    mkdir -p /var/lib/nginx/tmp/client_body /var/lib/nginx/tmp/proxy /var/lib/nginx/tmp/fastcgi /var/lib/nginx/tmp/uwsgi /var/lib/nginx/tmp/scgi
+    mkdir -p /www/server/nginx/tmp /www/server/nginx/proxy_temp_dir /www/server/nginx/proxy_cache_dir
     export LD_LIBRARY_PATH=/www/server/nginx/lib
     start-stop-daemon --start --background --make-pidfile \
         --pidfile "$PIDFILE" \
