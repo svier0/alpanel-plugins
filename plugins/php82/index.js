@@ -380,8 +380,6 @@ const php82 = {
             render(h, state) {
                 var list = state.disableFuncs.value
                 return h('div', [
-                    h('p', { class: 'tip' }, '在此处可以禁用指定函数的调用,以增强环境安全性!'),
-                    h('p', { class: 'tip' }, '强烈建议禁用如exec,system等危险函数!'),
                     h('table', { class: 'table' }, [
                         h('thead', [h('tr', [h('th', '名称'), h('th', '操作')])]),
                         h('tbody', list && list.length
@@ -393,6 +391,8 @@ const php82 = {
                                 })
                             : []),
                     ]),
+                    h('p', { class: 'tip' }, '在此处可以禁用指定函数的调用,以增强环境安全性!'),
+                    h('p', { class: 'tip' }, '强烈建议禁用如exec,system等危险函数!'),
                 ])
             },
         },
