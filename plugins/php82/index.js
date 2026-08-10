@@ -433,7 +433,7 @@ const php82 = {
                 }
                 return h('div', [
                     h('div', { class: 'form-grid' }, [
-                        ...field('监听地址', '/tmp/php-cgi-82.sock 绑定IP:监听端口或Unix套接字地址', 'listen'),
+                        ...field('连接信息', '绑定IP:监听端口或Unix套接字地址', 'listen'),
                         ...field('IP白名单', '允许访问PHP的IP，多个请用逗号隔开', 'allowed_clients'),
                         h('label', '运行模式'),
                         h('select', { class: 'slt', value: p.pm,
