@@ -37,6 +37,28 @@ const php82 = {
         const logContent = ref('')
         const slowlogContent = ref('')
 
+        // —— 禁用函数 ——
+        const disableFuncs = ref([])
+        async function loadDisableFuncs() {
+            try {
+                var r = await ctx.api('get_disable_funcs')
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                disableFuncs.value = d.list || []
+            } catch (e) {
+                disableFuncs.value = []
+            }
+        }
+        async function delDisableFunc(name) {
+            try {
+                var r = await ctx.api('del_disable_func', { body: JSON.stringify({ name: name }) })
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                toast(d.ok ? '已删除 ' + name : (d.error || '删除失败'), d.ok ? 'ok' : 'err')
+            } catch (e) {
+                toast('删除失败 ' + (e.message || ''), 'err')
+            }
+            loadDisableFuncs()
+        }
+
         // —— 服务页 ——
         async function checkStatus() {
             try {
@@ -312,6 +334,7 @@ const php82 = {
             iniContent, iniSaving,
             fpmContent, fpmSaving,
             logContent, slowlogContent,
+            disableFuncs, loadDisableFuncs, delDisableFunc,
             statusFields, fpmStatus, statusError, extStatus,
             checkStatus, getVersion, control,
             loadAdjust, saveAdjust,
@@ -353,10 +376,23 @@ const php82 = {
 
         // —— 禁用函数 ——
         disable: {
-            onLoad() {},
+            onLoad(ctx, state) { return state.loadDisableFuncs() },
             render(h, state) {
+                var list = state.disableFuncs.value
                 return h('div', [
-                    h('p', { class: 'tip' }, '功能开发中'),
+                    h('p', { class: 'tip' }, '在此处可以禁用指定函数的调用,以增强环境安全性!'),
+                    h('p', { class: 'tip' }, '强烈建议禁用如exec,system等危险函数!'),
+                    h('table', { class: 'table' }, [
+                        h('thead', [h('tr', [h('th', '名称'), h('th', '操作')])]),
+                        h('tbody', list && list.length
+                            ? list.map(function(name) {
+                                    return h('tr', [
+                                        h('td', name),
+                                        h('td', h('a', { class: 'dl-link', onClick: function() { state.delDisableFunc(name) } }, '删除')),
+                                    ])
+                                })
+                            : []),
+                    ]),
                 ])
             },
         },
@@ -566,6 +602,13 @@ const php82 = {
     // render(h, state) {
     //     return h('div', '自由渲染模式：整个插件界面由本函数产出')
     // },
+
+    style() {
+        return [
+            '.dl-link{color:#f56c6c;cursor:pointer;font-size:13px}',
+            '.dl-link:hover{text-decoration:underline}',
+        ].join(' ')
+    }
 }
 
 Plugin(php82).show()

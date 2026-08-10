@@ -5,5 +5,5 @@
   "versions": "1.0",
   "author": "alpanel",
   "home": "https://github.com/svier0/alpanel",
-  "func": "get_version|get_php_ini|save_php_ini|get_fpm_conf|save_fpm_conf|get_php_value|set_php_value|get_fpm_value|set_fpm_value|get_fpm_status|get_fpm_log|get_slow_log"
+  "func": "get_version|get_php_ini|save_php_ini|get_fpm_conf|save_fpm_conf|get_php_value|set_php_value|get_fpm_value|set_fpm_value|get_fpm_status|get_fpm_log|get_slow_log|get_disable_funcs|del_disable_func"
 }

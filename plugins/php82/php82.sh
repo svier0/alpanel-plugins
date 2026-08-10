@@ -343,6 +343,85 @@ set_php_value() {
     echo '{"ok":true}'
 }
 
+default_disable_funcs() {
+    cat <<'EOF'
+passthru
+exec
+system
+chroot
+chgrp
+chown
+popen
+proc_open
+pcntl_exec
+ini_alter
+ini_restore
+dl
+openlog
+syslog
+readlink
+symlink
+popepassthru
+pcntl_alarm
+pcntl_fork
+pcntl_waitpid
+pcntl_wait
+pcntl_wifexited
+pcntl_wifstopped
+pcntl_wifsignaled
+pcntl_wifcontinued
+pcntl_wexitstatus
+pcntl_wtermsig
+pcntl_wstopsig
+pcntl_get_last_error
+pcntl_strerror
+pcntl_sigprocmask
+pcntl_sigwaitinfo
+pcntl_sigtimedwait
+pcntl_exec
+pcntl_getpriority
+pcntl_setpriority
+imap_open
+apache_setenv
+EOF
+}
+
+get_disable_funcs() {
+    [ -f "$INI_FILE" ] || { echo '{"error":"php.ini not found"}'; exit 1; }
+    file="$INI_FILE" key="disable_functions"
+    cur=$(getv)
+    if [ -n "$cur" ]; then
+        list=$(echo "$cur" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)
+    else
+        list=$(default_disable_funcs)
+    fi
+    echo "{\"list\":[$(echo "$list" | sed 's/^/"/; s/$/"/' | tr '\n' ',' | sed 's/,$//')]}"
+}
+
+del_disable_func() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    name=$(echo "$PLUGIN_ARGS" | jq -r '.name // empty')
+    if [ -z "$name" ]; then
+        echo '{"error":"no name"}'
+        exit 1
+    fi
+    [ -f "$INI_FILE" ] && cp "$INI_FILE" "$INI_FILE.bak" || { echo '{"error":"ini missing"}'; exit 1; }
+    file="$INI_FILE" key="disable_functions"
+    cur=$(getv)
+    if [ -n "$cur" ]; then
+        base=$(echo "$cur" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)
+    else
+        base=$(default_disable_funcs)
+    fi
+    new=$(echo "$base" | grep -vx "$name" | tr '\n' ',' | sed 's/,$//' || true)
+    update_kv "$INI_FILE" "disable_functions" "$new"
+    rm -f "$INI_FILE.bak"
+    echo '{"ok":true}'
+}
+
 get_fpm_value() {
     [ -f "$FPM_D" ] || { echo '{"error":"www.conf not found"}'; exit 1; }
     file="$FPM_D"
