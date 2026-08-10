@@ -371,6 +371,89 @@ const php82 = {
             }
         }
 
+        // —— 安装扩展 ——
+        // 子tab: 安装列表 / 本地扩展
+        const extTab = ref('list')
+        const extList = ref([])
+        const extListError = ref('')
+        const localExts = ref({ builtin: [], so: [] })
+        const BUILTIN_EXTS = [
+            'Core', 'date', 'filter', 'hash', 'json', 'libxml', 'pcre', 'random',
+            'readline', 'Reflection', 'SPL', 'standard', 'zlib',
+        ]
+        async function loadExtList() {
+            try {
+                var r = await ctx.api('get_ext_list')
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                if (d && d.list) {
+                    extList.value = d.list
+                    return
+                }
+                if (d && d.error) {
+                    extListError.value = d.error
+                }
+            } catch (e) {}
+            if (!extList.value.length) {
+                extListError.value = extListError.value || '扩展列表加载失败'
+            }
+        }
+        async function refreshExtList() {
+            try {
+                var r = await ctx.api('build_ext_cache')
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                if (d && d.ok) {
+                    ctx.toast('已更新扩展列表', 'ok')
+                    loadExtList()
+                } else {
+                    ctx.toast((d && d.error) || '获取扩展列表失败', 'err')
+                }
+            } catch (e) {
+                ctx.toast('获取扩展列表失败 ' + (e.message || ''), 'err')
+            }
+        }
+        async function loadLocalExts() {
+            try {
+                var r = await ctx.api('get_local_exts')
+                var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                if (d && (d.builtin || d.so)) {
+                    localExts.value = { builtin: d.builtin || [], so: d.so || [] }
+                    return
+                }
+            } catch (e) {}
+            localExts.value = {
+                builtin: BUILTIN_EXTS,
+                so: ['curl', 'gd', 'mbstring', 'mysqli', 'mysqlnd', 'opcache', 'openssl', 'pdo', 'pdo_mysql', 'zip'],
+            }
+        }
+        function installExt(pkg) {
+            ctx.api('install_ext', { body: JSON.stringify({ name: pkg }) })
+                .then(function(r) {
+                    var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                    if (d.ok) {
+                        ctx.toast('已安装 ' + pkg, 'ok')
+                        if (running.value) control('reload')
+                        loadLocalExts()
+                    } else {
+                        ctx.toast(d.error || '安装失败', 'err')
+                    }
+                })
+                .catch(function(e) { ctx.toast('安装失败 ' + (e.message || ''), 'err') })
+        }
+        function uninstallExt(pkg) {
+            ctx.api('uninstall_ext', { body: JSON.stringify({ name: pkg }) })
+                .then(function(r) {
+                    var d = (r && r.stdout) ? JSON.parse(r.stdout) : {}
+                    if (d.ok) {
+                        ctx.toast('已卸载 ' + pkg, 'ok')
+                        if (running.value) control('reload')
+                        loadLocalExts()
+                    } else {
+                        ctx.toast(d.error || '卸载失败', 'err')
+                    }
+                })
+                .catch(function(e) { ctx.toast('卸载失败 ' + (e.message || ''), 'err') })
+        }
+
         return {
             Editor, running, version, actionLoading,
             adjust, adjustSaving,
@@ -381,6 +464,7 @@ const php82 = {
             disableFuncs, loadDisableFuncs, delDisableFunc,
             sessionCfg, sessionSaving, sessionFiles, loadSession, saveSession, cleanSession,
             statusFields, fpmStatus, statusError, extStatus,
+            extTab, extList, extListError, localExts, loadExtList, loadLocalExts, refreshExtList, installExt, uninstallExt,
             checkStatus, getVersion, control,
             loadAdjust, saveAdjust,
             loadPerf, savePerf,
@@ -444,10 +528,66 @@ const php82 = {
 
         // —— 安装扩展 ——
         ext: {
-            onLoad() {},
+            onLoad(ctx, state) { return Promise.all([state.loadExtList(), state.loadLocalExts()]) },
             render(h, state) {
+                var tab = state.extTab.value
+                var soNames = state.localExts.value.so || []
+                var builtinNames = state.localExts.value.builtin || []
+                var subTab = function(key, label) {
+                    return h('div', {
+                        class: 'subtab-item' + (tab === key ? ' active' : ''),
+                        onClick: function() { state.extTab.value = key },
+                    }, label)
+                }
+                var content
+                if (tab === 'local') {
+                    var localRows = builtinNames.concat(soNames).map(function(name) {
+                        return h('tr', [h('td', name)])
+                    })
+                    content = h('table', { class: 'table' }, [
+                        h('thead', [h('tr', [h('th', '扩展名称')])]),
+                        h('tbody', localRows),
+                    ])
+                } else {
+                    var rows = state.extList.value.map(function(item) {
+                        var name = item.name
+                        var pkg = item.pkg || name
+                        var isBuiltin = builtinNames.indexOf(name) !== -1
+                        var isInstalled = soNames.indexOf(name) !== -1
+                        var op
+                        if (isBuiltin) {
+                            op = h('a', { class: 'builtin-tag' }, '内置')
+                        } else if (isInstalled) {
+                            op = h('a', { class: 'dl-link', onClick: function() { state.uninstallExt(pkg) } }, '卸载')
+                        } else {
+                            op = h('a', { class: 'inst-link', onClick: function() { state.installExt(pkg) } }, '安装')
+                        }
+                        return h('tr', [
+                            h('td', name),
+                            h('td', item.desc || ''),
+                            h('td', op),
+                        ])
+                    })
+                    content = [
+                        h('table', { class: 'table' }, [
+                            h('thead', [h('tr', [h('th', '名称'), h('th', '说明'), h('th', '操作')])]),
+                            h('tbody', rows),
+                        ]),
+                        h('p', { class: 'tip' }, state.extListError.value ? state.extListError.value : ''),
+                        h('p', { class: 'tip' }, [
+                            h('a', { class: 'refresh-link', onClick: state.refreshExtList }, '点击获取最新扩展列表'),
+                        ]),
+                        h('p', { class: 'tip' }, 'Redis扩展仅支持一个PHP版本安装使用,若在其它PHP版本已安装redis扩展,请勿再装'),
+                        h('p', { class: 'tip' }, '请按实际需求安装扩展,不要安装不必要的PHP扩展,这会影响PHP执行效率,甚至出现异常'),
+                        h('p', { class: 'tip' }, 'opcache/xcache/apc等脚本缓存扩展,请只安装其中1个,否则可能导致您的站点程序异常'),
+                    ]
+                }
                 return h('div', [
-                    h('p', { class: 'tip' }, '功能开发中'),
+                    h('div', { class: 'subtab' }, [
+                        subTab('list', '安装列表'),
+                        subTab('local', '本地扩展'),
+                    ]),
+                    content,
                 ])
             },
         },
@@ -698,6 +838,15 @@ const php82 = {
         return [
             '.dl-link{color:#f56c6c;cursor:pointer;font-size:13px}',
             '.dl-link:hover{text-decoration:underline}',
+            '.inst-link{color:#409eff;cursor:pointer;font-size:13px}',
+            '.inst-link:hover{text-decoration:underline}',
+            '.refresh-link{color:#409eff;cursor:pointer;font-size:13px}',
+            '.refresh-link:hover{text-decoration:underline}',
+            '.builtin-tag{color:#888;font-size:13px;cursor:default}',
+            '.subtab{display:flex;border-bottom:1px solid #2a2a2a;margin-bottom:14px}',
+            '.subtab-item{padding:8px 18px;color:#666;cursor:pointer;font-size:14px;border-bottom:2px solid transparent;margin-bottom:-1px}',
+            '.subtab-item:hover{color:#aaa}',
+            '.subtab-item.active{color:#fff;border-bottom-color:#409eff}',
         ].join(' ')
     }
 }

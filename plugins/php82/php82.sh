@@ -13,6 +13,12 @@ PHP_BIN="$BIN_DIR/php$VER"
 FPM_BIN="$BIN_DIR/php-fpm$VER"
 FPM_CONF="$CONF_DIR/php-fpm.conf"
 PIDFILE="$RUN_DIR/php-fpm.pid"
+PLUGIN_DIR="/www/server/panel/plugin/php$VER"
+CACHE_DIR="$PLUGIN_DIR/cache"
+EXT_CACHE="$CACHE_DIR/ext_list.json"
+
+# 默认安装并启用的官方扩展(对齐宝塔编译内置清单, 不含 fpm; 顺序=php.ini 加载顺序, 依赖前置)
+EXT_LIST="openssl mysqlnd pdo session ctype iconv bcmath curl dom ftp gd gettext intl mbstring mysqli pdo_mysql pdo_sqlite pcntl phar posix shmop simplexml soap sockets sodium sqlite3 sysvsem tokenizer xml xmlreader xmlwriter zip"
 
 apply_rpath() {
     rpath="$1"; shift
@@ -47,8 +53,7 @@ install() {
 
     (
         cd "$dl_dir"
-        apk fetch --recursive "php$VER" "php$VER-fpm" "php$VER-mysqli" "php$VER-pdo_mysql" \
-            "php$VER-gd" "php$VER-curl" "php$VER-mbstring" "php$VER-opcache" "php$VER-zip"
+        apk fetch --recursive "php$VER" "php$VER-fpm"
     ) || {
         echo "错误: 未找到 php$VER 相关软件包" >&2
         rm -rf "$dl_dir" "$ext_dir"
@@ -145,9 +150,18 @@ PHINIT
     sed -i "s|__VER__|$VER|g" "/etc/init.d/php$VER"
     chmod +x "/etc/init.d/php$VER"
 
+    # 默认扩展逐个安装(复用扩展安装逻辑, 含写 php.ini extension= 行)
+    for pkg in $EXT_LIST; do
+        install_one_ext "$pkg" >/dev/null 2>&1 \
+            || echo "  [warn] 扩展 $pkg 安装失败"
+    done
+
     rm -rf "$dl_dir" "$ext_dir"
 
     rc-update add "php$VER" default 2>/dev/null || true
+
+    # 生成一次扩展列表缓存, 避免插件页首次加载实时请求 apk 源
+    build_ext_cache >/dev/null 2>&1 || true
 
     echo "PHP $VER 安装完成"
 }
@@ -590,4 +604,146 @@ get_fpm_log() {
 
 get_slow_log() {
     get_log "/www/server/php/$VER/var/log/slow.log"
+}
+
+# 本地扩展: 内置(非动态库) + modules 目录已下载的 .so
+get_local_exts() {
+    [ -f "$PHP_BIN" ] || { echo '{"error":"PHP 未安装"}'; exit 1; }
+    builtin=$( "$PHP_BIN" -n -m 2>/dev/null \
+        | sed -n '/\[PHP Modules\]/,/^$/p' \
+        | grep -vE '^\[|^$' )
+    so=$(ls "$LIB_DIR/php$VER/modules"/*.so 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\.so$//' || true)
+    echo "{\"builtin\":$(echo "$builtin" | jq -R -s -c 'split("\n")|map(select(length>0))'),\"so\":$(echo "$so" | jq -R -s -c 'split("\n")|map(select(length>0))')}"
+}
+
+# 实时请求 apk 源并写缓存(安装插件/点刷新时调用)
+build_ext_cache() {
+    mkdir -p "$CACHE_DIR"
+    tmp=$(mktemp)
+    apk update >/dev/null 2>&1 || true
+    apk search -v 'php82-*' 2>/dev/null > "$tmp" || { rm -f "$tmp"; echo '{"error":"apk search 失败"}'; return 1; }
+    awk -F ' - ' 'NF>=2 && $1 ~ /^php82-/ {
+        pkg=$1; sub(/^php82-/,"",pkg); sub(/-[0-9][0-9a-zA-Z._-]*$/,"",pkg)
+        if (pkg !~ /^[a-zA-Z]/) next
+        if (pkg=="fpm" || pkg=="cgi" || pkg=="dbg" || pkg=="dev" || pkg=="doc" || pkg=="common" \
+            || pkg=="pear" || pkg=="apache2" || pkg=="litespeed" || pkg=="embed" || pkg=="phpdbg" || pkg=="spx") next
+        name=pkg; sub(/^pecl-/,"",name)
+        printf "{\"name\":\"%s\",\"pkg\":\"%s\",\"desc\":\"%s\"}\n", name, pkg, $2
+    }' "$tmp" | jq -s '{list:.}' > "$EXT_CACHE"
+    code=$?
+    rm -f "$tmp"
+    if [ "$code" -eq 0 ] && [ -s "$EXT_CACHE" ]; then
+        echo '{"ok":true}'
+    else
+        echo '{"error":"获取扩展列表失败"}'
+        return 1
+    fi
+}
+
+# 只读缓存, 不实时请求
+get_ext_list() {
+    if [ -f "$EXT_CACHE" ]; then
+        cat "$EXT_CACHE"
+    else
+        echo '{"error":"扩展列表缓存不存在, 请点击获取最新扩展列表"}'
+        exit 1
+    fi
+}
+
+# 安装扩展: 传入原始包名(pecl-redis 等), 下载 .so 到 modules, 写 php.ini
+install_ext() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    pkg=$(echo "$PLUGIN_ARGS" | jq -r '.name // empty')
+    [ -n "$pkg" ] || { echo '{"error":"bad name"}'; exit 1; }
+    case "$pkg" in
+        *[!a-zA-Z0-9_-]*|'') echo '{"error":"bad name"}'; exit 1;;
+    esac
+    install_one_ext "$pkg"
+}
+
+# 内部: 安装单个扩展(供 action 与 install() 默认扩展共用)
+install_one_ext() {
+    pkg="$1"
+    [ -f "$INI_FILE" ] || { echo '{"error":"php.ini not found"}'; exit 1; }
+
+    dl_dir=$(mktemp -d)
+    ext_dir=$(mktemp -d)
+    ( cd "$dl_dir" && apk fetch --recursive "php$VER-$pkg" >/dev/null 2>&1 ) || {
+        rm -rf "$dl_dir" "$ext_dir"
+        echo "{\"error\":\"apk 源无此包: php$VER-$pkg\"}"
+        exit 1
+    }
+    for apk_file in "$dl_dir"/*.apk; do
+        [ -f "$apk_file" ] || continue
+        tar -xzf "$apk_file" -C "$ext_dir"
+    done
+
+    mod_dir="$LIB_DIR/php$VER/modules"
+    mkdir -p "$mod_dir"
+    # 目标 .so 名: 去掉 pecl- 前缀(redis.so); 从解压目录精确匹配, 避免命中依赖扩展
+    want=$(echo "$pkg" | sed 's/^pecl-//')
+    ext_so=$(find "$ext_dir" -path '*/modules/*.so' -type f 2>/dev/null | grep -E "/${want}\.so$" | head -1 || true)
+    if [ -z "$ext_so" ]; then
+        # 兜底: 取第一个匹配包名前缀的 .so
+        ext_so=$(find "$ext_dir" -path '*/modules/*.so' -type f 2>/dev/null | grep -E "/${want}[^/]*\.so$" | head -1 || true)
+    fi
+    if [ -z "$ext_so" ]; then
+        rm -rf "$dl_dir" "$ext_dir"
+        echo "{\"error\":\"包内未找到 ${want}.so\"}"
+        exit 1
+    fi
+    so_name=$(basename "$ext_so")
+    cp -f "$ext_so" "$mod_dir/$so_name"
+
+    # 依赖库拷入 LIB_DIR 顶层: 含符号链接(.so.8 -> .so.8.4.0), 非 modules 目录下的 .so(依赖 apk 的解压扩展不拷)
+    find "$ext_dir" \( -type f -o -type l \) -name '*.so*' ! -path '*/modules/*' \
+        -exec cp -fL {} "$LIB_DIR/" \; 2>/dev/null || true
+
+    if [ "$pkg" = "opcache" ]; then
+        ext_key="zend_extension"
+    else
+        ext_key="extension"
+    fi
+    cp "$INI_FILE" "$INI_FILE.bak"
+    if grep -qiE "^[[:space:]]*${ext_key}[[:space:]]*=[[:space:]]*${so_name}([;#]|$)" "$INI_FILE"; then
+        : # 已在 ini 中
+    else
+        echo "${ext_key}=${so_name}" >> "$INI_FILE"
+    fi
+    rm -f "$INI_FILE.bak"
+
+    rm -rf "$dl_dir" "$ext_dir"
+    echo "{\"ok\":true,\"so\":\"$so_name\"}"
+}
+
+# 卸载扩展: 传入原始包名, 移除 php.ini 行与 .so
+uninstall_ext() {
+    if [ -z "${PLUGIN_ARGS:-}" ]; then
+        echo '{"error":"no data"}'
+        exit 1
+    fi
+    name=$(echo "$PLUGIN_ARGS" | jq -r '.name // empty')
+    [ -n "$name" ] || { echo '{"error":"bad name"}'; exit 1; }
+    case "$name" in
+        *[!a-zA-Z0-9_-]*|'') echo '{"error":"bad name"}'; exit 1;;
+    esac
+    [ -f "$INI_FILE" ] || { echo '{"error":"php.ini not found"}'; exit 1; }
+
+    disp=$(echo "$name" | sed 's/^pecl-//')
+    mod_dir="$LIB_DIR/php$VER/modules"
+
+    # 从 ini 找出实际写入的 .so 名
+    so_name=$(grep -iE "^[[:space:]]*(extension|zend_extension)[[:space:]]*=[[:space:]]*${disp}(\.so)?([;#]|$)" "$INI_FILE" \
+        | head -1 | sed -E 's/^[^=]*=[[:space:]]*([^;#]+).*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+    [ -n "$so_name" ] || so_name="$disp.so"
+
+    cp "$INI_FILE" "$INI_FILE.bak"
+    sed -i -E "/^[[:space:]]*[eE][xX][tT][eE][nN][sS][iI][oO][nN][[:space:]]*=[[:space:]]*${disp}(\.so)?([;#]|$)/d; /^[[:space:]]*[zZ][eE][nN][dD]_[eE][xX][tT][eE][nN][sS][iI][oO][nN][[:space:]]*=[[:space:]]*${disp}(\.so)?([;#]|$)/d" "$INI_FILE"
+    rm -f "$INI_FILE.bak"
+
+    rm -f "$mod_dir/$so_name"
+    echo '{"ok":true}'
 }
