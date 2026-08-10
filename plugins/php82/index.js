@@ -367,7 +367,7 @@ const php82 = {
                 Object.assign(fpmStatus, d)
                 extStatus.value = (d && d.requests) ? d.requests : {}
             } catch (e) {
-                statusError.value = '获取状态失败：' + (e.message || '')
+                statusError.value = '服务未启动'
             }
         }
 

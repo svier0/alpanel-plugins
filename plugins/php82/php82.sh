@@ -546,10 +546,12 @@ get_fpm_status() {
     script=$(mktemp)
     cat > "$script" << 'PHPEOF'
 <?php
+error_reporting(0);
+ini_set('display_errors', 0);
 $sock = getenv("FPM_SOCK") ?: "/tmp/php-cgi-82.sock";
 $query = getenv("FPM_QS") ?: "json";
-$fp = stream_socket_client("unix://" . $sock, $errno, $errstr, 3);
-if (!$fp) { echo json_encode(["error" => "connect fail: $errstr"]); exit(1); }
+$fp = @stream_socket_client("unix://" . $sock, $errno, $errstr, 3);
+if (!$fp) { echo json_encode(["error" => "服务未启动"]); exit(1); }
 function pnl($n){ if($n < 128) return chr($n); return chr(($n>>24)&255).chr(($n>>16)&255).chr(($n>>8)&255).chr($n&255); }
 function wr($fp, $t, $id, $c){
   $len = strlen($c); $pad = (8 - ($len % 8)) % 8;
