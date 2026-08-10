@@ -357,9 +357,10 @@ set_fpm_value() {
     [ -f "$FPM_D" ] && cp "$FPM_D" "$FPM_D.bak" || { echo '{"error":"conf missing"}'; exit 1; }
     tmp=$(mktemp)
     echo "$PLUGIN_ARGS" > "$tmp"
-    for key in listen allowed_clients pm max_children start_servers min_spare_servers max_spare_servers; do
-        val=$(jq -r ".$key // empty" "$tmp" 2>/dev/null)
-        [ -n "$val" ] && update_kv "$FPM_D" "$key" "$val"
+    for entry in "listen|listen" "allowed_clients|listen.allowed_clients" "pm|pm" "max_children|pm.max_children" "start_servers|pm.start_servers" "min_spare_servers|pm.min_spare_servers" "max_spare_servers|pm.max_spare_servers"; do
+        field=${entry%%|*} confkey=${entry#*|}
+        val=$(jq -r ".$field // empty" "$tmp" 2>/dev/null)
+        [ -n "$val" ] && update_kv "$FPM_D" "$confkey" "$val"
     done
     rm -f "$tmp"
     if "$FPM_BIN" -t --fpm-config "$FPM_CONF" >/dev/null 2>&1; then
@@ -431,4 +432,17 @@ PHPEOF
     code=$?
     rm -f "$script"
     [ "$code" -eq 0 ] || { echo '{"error":"获取 PHP 状态失败"}'; exit 1; }
+}
+
+get_log() {
+    file="$1"
+    [ -f "$file" ] && tail -n 500 "$file"
+}
+
+get_fpm_log() {
+    get_log "/www/server/php/$VER/var/log/php-fpm.log"
+}
+
+get_slow_log() {
+    get_log "/www/server/php/$VER/var/log/slow.log"
 }
