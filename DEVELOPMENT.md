@@ -155,7 +155,8 @@ get_version() {
 
 ```js
 const nginx = {
-  plugin_name: 'nginx',        // 必填，用于 ctx.api 拼 action URL
+  plugin_name: 'nginx',        // 必填，唯一标识，用于 ctx.api 拼 action URL
+  title: 'Nginx',              // 可选，弹窗标题；缺省回退 plugin_name，setup 里可改 ctx.plugin_title.value 实时更新
 
   // 可选：弹窗尺寸。数字=px，字符串原样。默认 620px × 620px，居中显示
   width: 800,

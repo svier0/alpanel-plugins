@@ -1,5 +1,6 @@
 const php84 = {
     plugin_name: 'php84',
+    title: 'PHP8.4',
     // layout: 'none' | 'tabpages'（缺省/空/null 均视为 'none'）
     layout: 'tabpages',
 

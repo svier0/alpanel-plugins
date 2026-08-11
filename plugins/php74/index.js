@@ -1,5 +1,6 @@
 const php74 = {
     plugin_name: 'php74',
+    title: 'PHP7.4',
     // layout: 'none' | 'tabpages'（缺省/空/null 均视为 'none'）
     layout: 'tabpages',
 

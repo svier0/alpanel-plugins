@@ -1,5 +1,6 @@
 const mysql = {
     plugin_name: 'mysql',
+    title: 'MySQL',
     // layout: 'none' | 'tabpages'（缺省/空/null 均视为 'none'）
     layout: 'tabpages',
 

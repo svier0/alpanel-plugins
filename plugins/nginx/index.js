@@ -1,5 +1,6 @@
 const nginx = {
     plugin_name: 'nginx',
+    title: 'Nginx',
     // layout: 'none' | 'tabpages'（缺省/空/null 均视为 'none'）
     layout: 'tabpages',
 

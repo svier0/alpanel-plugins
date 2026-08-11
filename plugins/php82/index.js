@@ -1,5 +1,6 @@
 const php82 = {
     plugin_name: 'php82',
+    title: 'PHP8.2',
     // layout: 'none' | 'tabpages'（缺省/空/null 均视为 'none'）
     layout: 'tabpages',
 
